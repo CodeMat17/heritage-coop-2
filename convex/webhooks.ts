@@ -29,7 +29,7 @@ export const processSquadPayment = action({
       return { status: "unauthorized" };
     }
 
-    if (args.transactionStatus !== "success") {
+    if (args.transactionStatus.toLowerCase() !== "success") {
       return { status: "ignored", reason: "non-success status" };
     }
 

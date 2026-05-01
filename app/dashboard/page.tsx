@@ -167,8 +167,23 @@ export default function DashboardPage() {
     setTxRef(genRef());
   }
 
-  function onPaySuccess(_: SquadVerifyResponse) {
+  async function onPaySuccess(verification: SquadVerifyResponse) {
     refreshRef();
+    const ref = verification.data?.transaction_ref;
+    if (!ref) return;
+    try {
+      await fetch("/api/squad/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionRef: ref,
+          coveredDates: datesToPay.join(","),
+          daysCount,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to record contribution directly:", err);
+    }
   }
 
   const isAdmin = clerkUser?.publicMetadata?.role === "admin";
