@@ -92,10 +92,10 @@ const FAQS = [
 ];
 
 const STATS = [
-  { value: "500+", label: "Active Members" },
-  { value: "₦50M+", label: "Total Saved" },
+  { value: "40+", label: "Active Members" },
+  { value: "₦30M+", label: "Total Saved" },
   { value: "₦120M+", label: "Loans Disbursed" },
-  { value: "5+", label: "Years Active" },
+  { value: "2+", label: "Years Active" },
 ];
 
 function fmt(n: number) {
@@ -160,7 +160,7 @@ export default function HomePage() {
             <motion.div variants={fadeUp} className="flex flex-wrap gap-x-6 gap-y-2">
               {["No hidden charges", "Secure payments", "90-day loan access"].map((t) => (
                 <span key={t} className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                   {t}
                 </span>
               ))}

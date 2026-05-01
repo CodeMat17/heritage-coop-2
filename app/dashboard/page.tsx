@@ -72,56 +72,56 @@ function genRef() {
 }
 
 // Last-30-days contribution calendar
-function ContributionCalendar({ contributedDates }: { contributedDates: string[] }) {
-  const contributed = new Set(contributedDates);
-  const days: { iso: string; label: string; contributed: boolean; isToday: boolean }[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const iso = d.toISOString().split("T")[0];
-    days.push({
-      iso,
-      label: d.getDate().toString(),
-      contributed: contributed.has(iso),
-      isToday: i === 0,
-    });
-  }
+// function ContributionCalendar({ contributedDates }: { contributedDates: string[] }) {
+//   const contributed = new Set(contributedDates);
+//   const days: { iso: string; label: string; contributed: boolean; isToday: boolean }[] = [];
+//   const today = new Date();
+//   today.setHours(0, 0, 0, 0);
+//   for (let i = 29; i >= 0; i--) {
+//     const d = new Date(today);
+//     d.setDate(d.getDate() - i);
+//     const iso = d.toISOString().split("T")[0];
+//     days.push({
+//       iso,
+//       label: d.getDate().toString(),
+//       contributed: contributed.has(iso),
+//       isToday: i === 0,
+//     });
+//   }
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">Contribution Calendar</h3>
-        <span className="text-xs text-muted-foreground">Last 30 days</span>
-      </div>
-      <div className="grid grid-cols-10 gap-1.5">
-        {days.map((d) => (
-          <div
-            key={d.iso}
-            title={`${d.iso} — ${d.contributed ? "Contributed" : "Missed"}`}
-            className={`h-7 w-full rounded-md flex items-center justify-center text-[10px] font-medium transition-colors ${
-              d.isToday
-                ? d.contributed
-                  ? "bg-emerald-600 text-white ring-2 ring-emerald-400 ring-offset-1"
-                  : "bg-amber-400/30 text-amber-700 dark:text-amber-400 ring-2 ring-amber-400 ring-offset-1"
-                : d.contributed
-                ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"
-                : "bg-muted text-muted-foreground/50"
-            }`}
-          >
-            {d.label}
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-emerald-200 dark:bg-emerald-900/40 inline-block" />Contributed</span>
-        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-muted inline-block" />Missed</span>
-        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-amber-300 inline-block" />Today</span>
-      </div>
-    </div>
-  );
-}
+//   return (
+//     <div>
+//       <div className="flex items-center justify-between mb-3">
+//         <h3 className="text-sm font-semibold">Contribution Calendar</h3>
+//         <span className="text-xs text-muted-foreground">Last 30 days</span>
+//       </div>
+//       <div className="grid grid-cols-10 gap-1.5">
+//         {days.map((d) => (
+//           <div
+//             key={d.iso}
+//             title={`${d.iso} — ${d.contributed ? "Contributed" : "Missed"}`}
+//             className={`h-7 w-full rounded-md flex items-center justify-center text-[10px] font-medium transition-colors ${
+//               d.isToday
+//                 ? d.contributed
+//                   ? "bg-emerald-600 text-white ring-2 ring-emerald-400 ring-offset-1"
+//                   : "bg-amber-400/30 text-amber-700 dark:text-amber-400 ring-2 ring-amber-400 ring-offset-1"
+//                 : d.contributed
+//                 ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"
+//                 : "bg-muted text-muted-foreground/50"
+//             }`}
+//           >
+//             {d.label}
+//           </div>
+//         ))}
+//       </div>
+//       <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+//         <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-emerald-200 dark:bg-emerald-900/40 inline-block" />Contributed</span>
+//         <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-muted inline-block" />Missed</span>
+//         <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-amber-300 inline-block" />Today</span>
+//       </div>
+//     </div>
+//   );
+// }
 
 export default function DashboardPage() {
   const { isAuthenticated } = useConvexAuth();
@@ -417,13 +417,13 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Calendar */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
           className='rounded-2xl bg-card border border-border p-6 shadow-sm'>
           <ContributionCalendar contributedDates={contributedDates} />
-        </motion.div>
+        </motion.div> */}
 
         {/* Contribution history */}
         <motion.div
