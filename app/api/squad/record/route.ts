@@ -3,34 +3,35 @@ import { ConvexHttpClient } from "convex/browser";
 import { NextRequest, NextResponse } from "next/server";
 import { api } from "../../../../convex/_generated/api";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
-// Called by the frontend after Squad payment succeeds, as a reliable fallback
-// to webhooks. Verifies the transaction server-side then records the contribution.
+// Called by the frontend immediately after Squad payment succeeds.
+// All sensitive values (email, amount, status) come from Squad's API — never
+// from the client. coveredDates are computed entirely server-side in Convex.
 export async function POST(request: NextRequest) {
-  const { userId } = await auth();
+  const { userId, getToken } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const secretKey = process.env.SQUAD_SECRET_KEY;
-  const webhookSecret = process.env.CONVEX_WEBHOOK_SECRET;
-  if (!secretKey || !webhookSecret) {
+  if (!secretKey) {
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
-  let body: { transactionRef: string; coveredDates: string; daysCount: number };
+  // Only accept transactionRef from the client — nothing else is trusted.
+  let body: { transactionRef: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { transactionRef, coveredDates, daysCount } = body;
+  const { transactionRef } = body;
   if (!transactionRef || typeof transactionRef !== "string") {
     return NextResponse.json({ error: "Missing transactionRef" }, { status: 400 });
   }
 
+  // Verify the transaction directly with Squad's API — amount, email, status
+  // all come from here, not from the client.
   const baseUrl =
     secretKey.startsWith("test_sk") || secretKey.startsWith("sandbox_sk")
       ? "https://sandbox-api-d.squadco.com"
@@ -57,34 +58,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Transaction not successful", status }, { status: 400 });
   }
 
-  // Pass metadata through so processSquadPayment can parse coveredDates
-  const meta = {
-    coveredDates: coveredDates ?? (squadData.meta as Record<string, unknown> | undefined)?.coveredDates ?? "",
-    daysCount: String(daysCount ?? 1),
-  };
+  // Get Clerk JWT so Convex can authenticate and identify the caller.
+  const token = await getToken({ template: "convex" });
+  if (!token) {
+    return NextResponse.json({ error: "Could not obtain auth token" }, { status: 401 });
+  }
+
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  convex.setAuth(token);
 
   try {
-    const result = await convex.action(api.webhooks.processSquadPayment, {
-      webhookSecret,
+    const result = await convex.action(api.webhooks.recordVerifiedPayment, {
       transactionRef,
-      email: squadData.email as string,
-      amount: squadData.amount as number,
-      merchantAmount: (squadData.merchant_amount as number | undefined) ?? (squadData.amount as number),
+      email: squadData.email as string,           // from Squad, not client
+      amount: squadData.amount as number,          // from Squad, not client
       currency: (squadData.currency as string | undefined) ?? "NGN",
-      transactionStatus: status,
-      transactionType: (squadData.transaction_type as string | undefined) ?? "unknown",
+      transactionStatus: status,                   // from Squad, not client
       gatewayRef: (squadData.gateway_ref as string | undefined) ?? undefined,
-      paymentType: undefined,
-      cardType: undefined,
-      pan: undefined,
-      tokenId: undefined,
-      customerMobile: (squadData.customer_mobile as string | undefined) ?? undefined,
-      isRecurring: undefined,
-      meta,
-      merchantId: (squadData.merchant_id as string | undefined) ?? undefined,
       squadCreatedAt: (squadData.created_at as string | undefined) ?? new Date().toISOString(),
     });
 
+    console.log("recordVerifiedPayment result:", result);
     return NextResponse.json(result);
   } catch (err) {
     console.error("Convex record error:", err);

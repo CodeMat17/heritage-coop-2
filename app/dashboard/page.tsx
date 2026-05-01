@@ -172,14 +172,12 @@ export default function DashboardPage() {
     const ref = verification.data?.transaction_ref;
     if (!ref) return;
     try {
+      // Only the transactionRef is sent — amount, email, and covered dates
+      // are all determined server-side from Squad's API and the user's package.
       await fetch("/api/squad/record", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transactionRef: ref,
-          coveredDates: datesToPay.join(","),
-          daysCount,
-        }),
+        body: JSON.stringify({ transactionRef: ref }),
       });
     } catch (err) {
       console.error("Failed to record contribution directly:", err);
