@@ -66,7 +66,8 @@ export default defineSchema({
     currency: v.optional(v.string()),
   })
     .index("byUserId", ["userId"])
-    .index("byTransactionRef", ["transactionRef"]),
+    .index("byTransactionRef", ["transactionRef"])
+    .index("byStatus", ["status"]),
 
   userLoans: defineTable({
     userId: v.id("users"),

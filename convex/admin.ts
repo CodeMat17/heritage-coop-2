@@ -7,10 +7,11 @@ export const getTotalSaved = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    const contributions = await ctx.db.query("userContributions").collect();
-    return contributions
-      .filter((c) => c.status === "success")
-      .reduce((sum, c) => sum + c.amount, 0);
+    const contributions = await ctx.db
+      .query("userContributions")
+      .withIndex("byStatus", (q) => q.eq("status", "success"))
+      .collect();
+    return contributions.reduce((sum, c) => sum + c.amount, 0);
   },
 });
 
