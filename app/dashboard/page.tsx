@@ -20,7 +20,7 @@ import {
   AlertCircle,
   ChevronRight,
   Settings,
-  ChevronLeft,
+  ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
 import type { SquadVerifyResponse } from "@/types/squad";
@@ -227,7 +227,7 @@ export default function DashboardPage() {
           <div className='flex items-center gap-2'>
             <Link href='/'>
               <Button variant='outline' size='sm' className='text-xs'>
-                <ChevronLeft className='h-3.5 w-3.5' />
+                <ArrowLeft className='h-3.5 w-3.5' />
                 Homepage
               </Button>
             </Link>
