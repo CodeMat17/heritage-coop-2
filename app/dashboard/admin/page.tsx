@@ -301,11 +301,15 @@ function UserDetail({ userId, onClose }: { userId: Id<"users">; onClose: () => v
   );
 }
 
+function StatSpinner() {
+  return <div className="h-6 w-6 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />;
+}
+
 export default function AdminPage() {
   const allUsers = useQuery(api.admin.getAllUsers);
+  const totalSavedData = useQuery(api.admin.getTotalSaved);
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
 
-  const totalSaved = 0;
   const onboardedCount = (allUsers ?? []).filter((u) => u.isOnboarded).length;
 
   return (
@@ -342,18 +346,22 @@ export default function AdminPage() {
             {[
               {
                 label: "Total Members",
-                value: allUsers?.length ?? "—",
+                value: allUsers == null ? null : allUsers.length,
                 icon: Users,
               },
-              { label: "Onboarded", value: onboardedCount, icon: CheckCircle2 },
+              {
+                label: "Onboarded",
+                value: allUsers == null ? null : onboardedCount,
+                icon: CheckCircle2,
+              },
               {
                 label: "Active Packages",
-                value: (allUsers ?? []).filter((u) => u.selectedPackage).length,
+                value: allUsers == null ? null : allUsers.filter((u) => u.selectedPackage).length,
                 icon: TrendingUp,
               },
               {
                 label: "Total Saved",
-                value: totalSaved > 0 ? fmt(totalSaved) : "—",
+                value: totalSavedData == null ? null : fmt(totalSavedData),
                 icon: Wallet,
               },
             ].map((s) => (
@@ -366,7 +374,11 @@ export default function AdminPage() {
                     {s.label}
                   </span>
                 </div>
-                <p className='text-2xl font-bold'>{s.value}</p>
+                {s.value === null ? (
+                  <StatSpinner />
+                ) : (
+                  <p className='text-2xl font-bold'>{s.value}</p>
+                )}
               </div>
             ))}
           </motion.div>

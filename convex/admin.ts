@@ -2,6 +2,18 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "./users";
 
+export const getTotalSaved = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const contributions = await ctx.db.query("userContributions").collect();
+    return contributions
+      .filter((c) => c.status === "success")
+      .reduce((sum, c) => sum + c.amount, 0);
+  },
+});
+
 export const getAllUsers = query({
   args: {},
   handler: async (ctx) => {

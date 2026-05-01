@@ -11,17 +11,19 @@ import { Building2, Moon, Sun, Menu } from "lucide-react";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
-function AuthedNavActions({ onNavigate }: { onNavigate?: () => void }) {
+function AuthedNavActions({ onNavigate, pathname }: { onNavigate?: () => void; pathname?: string }) {
   const user = useQuery(api.users.current);
   return user?.isOnboarded ? (
+    pathname === "/dashboard" ? null : (
     <Link href="/dashboard" onClick={onNavigate}>
-      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex">
+      <Button  className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex py-4">
         Dashboard
       </Button>
     </Link>
+    )
   ) : (
     <Link href="/onboarding" onClick={onNavigate}>
-      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex">
+      <Button  className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex py-4">
         Complete Setup
       </Button>
     </Link>
@@ -104,14 +106,14 @@ export default function Navbar() {
                 <Button variant="ghost" size="sm" className="hidden sm:flex">Sign in</Button>
               </SignInButton>
               <Link href="/sign-up">
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white hidden md:flex">
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white hidden md:flex py-4">
                   Get Started
                 </Button>
               </Link>
             </Unauthenticated>
 
             <Authenticated>
-              <AuthedNavActions />
+              <AuthedNavActions pathname={pathname} />
               <UserButton />
             </Authenticated>
 
@@ -159,12 +161,12 @@ export default function Navbar() {
                   <div className="flex flex-col gap-2">
                     <Unauthenticated>
                       <SignInButton mode="modal">
-                        <button className="w-full text-left text-base py-3 px-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                        <button className="w-full text-left text-base py-4 px-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
                           Sign in
                         </button>
                       </SignInButton>
                       <Link href="/sign-up" onClick={() => setSheetOpen(false)}>
-                        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4">
                           Get Started
                         </Button>
                       </Link>
