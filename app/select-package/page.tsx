@@ -2,8 +2,9 @@
 
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -11,11 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Building2 } from "lucide-react";
 
 const PACKAGES = [
-  { id: "bronze", name: "Bronze", daily: 500, loan: 100_000, desc: "Start small and build the savings habit." },
-  { id: "silver", name: "Silver", daily: 1_000, loan: 180_000, desc: "Balanced plan for steady savers." },
-  { id: "gold", name: "Gold", daily: 2_000, loan: 360_000, desc: "Double your momentum towards bigger goals.", popular: true },
-  { id: "diamond", name: "Diamond", daily: 5_000, loan: 1_000_000, desc: "High-capacity savings for ambitious targets." },
-  { id: "emerald", name: "Emerald", daily: 10_000, loan: 2_000_000, desc: "Elite savings for maximum leverage." },
+  { id: "bronze",  name: "Bronze",  daily: 500,    loan: 100_000,   regFee: 5_000,  desc: "Start small and build the savings habit." },
+  { id: "silver",  name: "Silver",  daily: 1_000,  loan: 180_000,   regFee: 10_000, desc: "Balanced plan for steady savers." },
+  { id: "gold",    name: "Gold",    daily: 2_000,  loan: 360_000,   regFee: 20_000, desc: "Double your momentum towards bigger goals.", popular: true },
+  { id: "diamond", name: "Diamond", daily: 5_000,  loan: 1_000_000, regFee: 30_000, desc: "High-capacity savings for ambitious targets." },
+  { id: "emerald", name: "Emerald", daily: 10_000, loan: 2_000_000, regFee: 40_000, desc: "Elite savings for maximum leverage." },
 ];
 
 function fmt(n: number) {
@@ -23,24 +24,43 @@ function fmt(n: number) {
 }
 
 export default function SelectPackagePage() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const user = useQuery(api.users.current);
   const selectPackage = useMutation(api.users.selectPackage);
   const router = useRouter();
-  const [selected, setSelected] = useState<string>(user?.selectedPackage ?? "");
+  const [selected, setSelected] = useState<string>("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) router.replace("/sign-in");
+  }, [isLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (user === undefined || user === null) return;
+    if (!user.isOnboarded) router.replace("/onboarding");
+    else if (user.registrationPaid) router.replace("/dashboard");
+    else if (user.selectedPackage && !selected) setSelected(user.selectedPackage);
+  }, [user, selected, router]);
 
   async function handleConfirm() {
     if (!selected) { toast.error("Please select a package."); return; }
     setSaving(true);
     try {
       await selectPackage({ packageId: selected });
-      toast.success("Package selected! Start saving today.");
-      router.push("/dashboard");
+      router.push("/payment-instructions");
     } catch {
       toast.error("Failed to save package. Try again.");
     } finally {
       setSaving(false);
     }
+  }
+
+  if (isLoading || user === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="h-8 w-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -58,7 +78,9 @@ export default function SelectPackagePage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <div className="text-center mb-10">
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">Choose Your Savings Package</h1>
-            <p className="text-muted-foreground">Select the plan that matches your daily capacity. You can change it anytime before applying for a loan.</p>
+            <p className="text-muted-foreground">
+              Select the plan that matches your daily capacity. Your registration fee depends on your chosen package.
+            </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 mb-8">
@@ -94,7 +116,7 @@ export default function SelectPackagePage() {
                   </div>
                   <div className="space-y-1.5">
                     <div>
-                      <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Daily</p>
+                      <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Daily contribution</p>
                       <p className={`text-2xl font-extrabold ${isSelected ? "text-white" : "text-foreground"}`}>
                         ₦{pkg.daily.toLocaleString("en-NG")}
                       </p>
@@ -102,6 +124,12 @@ export default function SelectPackagePage() {
                     <div>
                       <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Loan after 90 days</p>
                       <p className={`font-bold text-lg ${isSelected ? "text-white" : "text-emerald-600"}`}>{fmt(pkg.loan)}</p>
+                    </div>
+                    <div className={`border-t pt-2 ${isSelected ? "border-emerald-500" : "border-border"}`}>
+                      <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Registration fee</p>
+                      <p className={`text-sm font-bold ${isSelected ? "text-white" : "text-foreground"}`}>
+                        {fmt(pkg.regFee)}
+                      </p>
                     </div>
                   </div>
                   <Badge
@@ -124,7 +152,7 @@ export default function SelectPackagePage() {
               disabled={!selected || saving}
               className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 px-10 text-base"
             >
-              {saving ? "Saving…" : `Confirm ${PACKAGES.find(p => p.id === selected)?.name ?? "Package"}`}
+              {saving ? "Saving…" : `Confirm ${PACKAGES.find(p => p.id === selected)?.name ?? "Package"} — Pay ${fmt(PACKAGES.find(p => p.id === selected)?.regFee ?? 0)} to register`}
             </Button>
           </div>
         </motion.div>

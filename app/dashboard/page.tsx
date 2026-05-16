@@ -10,11 +10,11 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import SquadPayButton from "@/components/SquadPayButton";
 import {
   Calendar,
   CheckCircle2,
   Clock,
+  Copy,
   TrendingUp,
   Wallet,
   AlertCircle,
@@ -23,7 +23,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
-import type { SquadVerifyResponse } from "@/types/squad";
+import { toast } from "sonner";
 
 const PACKAGES: Record<string, { name: string; daily: number; loan: number }> = {
   bronze:  { name: "Bronze",  daily: 500,    loan: 100_000 },
@@ -34,6 +34,9 @@ const PACKAGES: Record<string, { name: string; daily: number; loan: number }> = 
 };
 
 const DAY_OPTIONS = [1, 2, 3, 5, 7, 14, 30];
+const SQUAD_ACCOUNT_NAME = process.env.NEXT_PUBLIC_SQUAD_ACCOUNT_NAME ?? "HERITAGE PORT-HARCOURT MULTI-PURPOSE CO-OPERATIVE SOCIETY LIMITED";
+const SQUAD_ACCOUNT_NUMBER = process.env.NEXT_PUBLIC_SQUAD_ACCOUNT_NUMBER ?? "0074256241";
+const SQUAD_BANK_NAME = process.env.NEXT_PUBLIC_SQUAD_BANK_NAME ?? "STANBIC IBTC BANK PLC";
 
 function fmt(n: number) {
   return `₦${n.toLocaleString("en-NG")}`;
@@ -65,10 +68,6 @@ function formatDateDisplay(iso: string) {
   return new Date(iso + "T00:00:00").toLocaleDateString("en-NG", {
     weekday: "short", day: "numeric", month: "short", year: "numeric",
   });
-}
-
-function genRef() {
-  return `HCO-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 }
 
 // Last-30-days contribution calendar
@@ -133,7 +132,6 @@ export default function DashboardPage() {
   const loans = useQuery(api.userLoans.getMyLoans);
 
   const [daysCount, setDaysCount] = useState(1);
-  const [txRef, setTxRef] = useState(() => genRef());
 
   // Auth guards
   useEffect(() => {
@@ -141,10 +139,16 @@ export default function DashboardPage() {
   }, [isAuthenticated, router]);
 
   useEffect(() => {
+    if (convexUser === undefined) return;
+    if (clerkUser?.publicMetadata?.role === "admin") {
+      router.replace("/dashboard/admin");
+      return;
+    }
     if (convexUser === null) return;
-    if (convexUser && !convexUser.isOnboarded) router.replace("/onboarding");
-    if (convexUser && convexUser.isOnboarded && !convexUser.selectedPackage) router.replace("/dashboard/select-package");
-  }, [convexUser, router]);
+    if (!convexUser.isOnboarded) router.replace("/onboarding");
+    else if (!convexUser.selectedPackage) router.replace("/select-package");
+    else if (convexUser.selectedPackage && !convexUser.registrationPaid) router.replace("/payment-instructions");
+  }, [convexUser, clerkUser, router]);
 
   const pkg = convexUser?.selectedPackage ? PACKAGES[convexUser.selectedPackage] : null;
   const daysContributed = stats?.daysContributed ?? 0;
@@ -166,29 +170,11 @@ export default function DashboardPage() {
 
   const firstName = convexUser?.name?.split(" ")[0] || "Member";
 
-  // Regenerate ref after each payment attempt
-  function refreshRef() {
-    setTxRef(genRef());
-  }
-
-  async function onPaySuccess(verification: SquadVerifyResponse) {
-    refreshRef();
-    const ref = verification.data?.transaction_ref;
-    if (!ref) return;
-    try {
-      // Only the transactionRef is sent — amount, email, and covered dates
-      // are all determined server-side from Squad's API and the user's package.
-      await fetch("/api/squad/record", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transactionRef: ref }),
-      });
-    } catch (err) {
-      console.error("Failed to record contribution directly:", err);
-    }
-  }
-
   const isAdmin = clerkUser?.publicMetadata?.role === "admin";
+
+  function copyText(text: string, label: string) {
+    navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied`));
+  }
 
   if (!convexUser || !pkg) {
     return (
@@ -379,8 +365,7 @@ export default function DashboardPage() {
           {/* Total */}
           <div className='flex items-center justify-between mb-5'>
             <div>
-              <p className='text-xs text-muted-foreground'>Total amount</p>
-              <p className='text-xs text-muted-foreground'>to be charged</p>
+              <p className='text-xs text-muted-foreground'>Transfer this amount</p>
             </div>
             <p className='text-2xl font-bold text-emerald-600'>
               {fmt(amountToPay)}
@@ -401,19 +386,33 @@ export default function DashboardPage() {
             </p>
           )}
 
-          <SquadPayButton
-            email={convexUser.email}
-            customerName={convexUser.name ?? ""}
-            amount={amountToPay}
-            publicKey={process.env.NEXT_PUBLIC_SQUAD_PUBLIC_KEY}
-            transactionRef={txRef}
-            metadata={{
-              coveredDates: datesToPay.join(","),
-              daysCount: String(daysCount),
-            }}
-            onSuccess={onPaySuccess}
-            label={`Pay ${fmt(amountToPay)}`}
-          />
+          {/* Bank transfer details */}
+          <div className='space-y-2'>
+            {[
+              { label: "Bank", value: SQUAD_BANK_NAME },
+              { label: "Account number", value: SQUAD_ACCOUNT_NUMBER },
+              { label: "Account name", value: SQUAD_ACCOUNT_NAME },
+            ].map(({ label, value }) => (
+              <div
+                key={label}
+                className='flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3'>
+                <div>
+                  <p className='text-xs text-muted-foreground'>{label}</p>
+                  <p className='text-sm font-semibold'>{value}</p>
+                </div>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  className='h-8 w-8 shrink-0'
+                  onClick={() => copyText(value, label)}>
+                  <Copy className='h-3.5 w-3.5' />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <p className='text-xs text-muted-foreground mt-3'>
+            Transfer the exact amount above. Your contribution days will be updated automatically once payment is confirmed.
+          </p>
         </motion.div>
 
         {/* Calendar */}

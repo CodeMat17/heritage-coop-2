@@ -130,7 +130,11 @@ export default function OnboardingPage() {
   }, [isAuthenticated, router]);
 
   React.useEffect(() => {
-    if (convexUser?.isOnboarded) router.replace("/dashboard");
+    if (convexUser === null) return;
+    if (!convexUser?.isOnboarded) return;
+    if (!convexUser.selectedPackage) router.replace("/select-package");
+    else if (!convexUser.registrationPaid) router.replace("/payment-instructions");
+    else router.replace("/dashboard");
   }, [convexUser, router]);
 
   const defaultFullName = convexUser?.name ?? "";
@@ -275,7 +279,7 @@ export default function OnboardingPage() {
     try {
       await upsertUser(payload);
       toast.success("Profile complete! Now choose your package.");
-      router.push("/dashboard/select-package");
+      router.push("/select-package");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save profile. Please try again.");
     } finally {

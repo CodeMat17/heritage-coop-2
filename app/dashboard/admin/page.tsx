@@ -99,6 +99,29 @@ function UserDetail({ userId, onClose }: { userId: Id<"users">; onClose: () => v
 
   return (
     <div className='space-y-6 pr-1'>
+      {/* Registration status */}
+      <div className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm ${
+        user.registrationPaid
+          ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800"
+          : "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+      }`}>
+        <div>
+          <p className="text-xs text-muted-foreground">Registration fee</p>
+          <p className={`text-sm font-semibold ${user.registrationPaid ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+            {user.registrationPaid ? "Paid ✓" : "Pending"}
+          </p>
+          {user.registrationPaidAt && (
+            <p className="text-xs text-muted-foreground">
+              {new Date(user.registrationPaidAt).toLocaleDateString("en-NG")}
+            </p>
+          )}
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Ref code</p>
+          <p className="text-xs font-mono font-medium">{user.registrationRef ?? "—"}</p>
+        </div>
+      </div>
+
       {/* Summary stats */}
       <div className='grid grid-cols-2 gap-3'>
         {[
@@ -306,8 +329,9 @@ function StatSpinner() {
 }
 
 export default function AdminPage() {
-  const allUsers = useQuery(api.admin.getAllUsers);
-  const totalSavedData = useQuery(api.admin.getTotalSaved);
+  const { isAuthenticated } = useConvexAuth();
+  const allUsers = useQuery(api.admin.getAllUsers, isAuthenticated ? {} : "skip");
+  const totalSavedData = useQuery(api.admin.getTotalSaved, isAuthenticated ? {} : "skip");
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
 
   const onboardedCount = (allUsers ?? []).filter((u) => u.isOnboarded).length;

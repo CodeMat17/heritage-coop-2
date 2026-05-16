@@ -11,32 +11,46 @@ import { Building2, Moon, Sun, Menu } from "lucide-react";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
+const FLOW_PATHS = ["/onboarding", "/select-package", "/payment-instructions"];
+
 function AuthedNavActions({ onNavigate, pathname }: { onNavigate?: () => void; pathname?: string }) {
   const user = useQuery(api.users.current);
-  return user?.isOnboarded ? (
-    pathname === "/dashboard" ? null : (
-    <Link href="/dashboard" onClick={onNavigate}>
-      <Button  className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex py-4">
-        Dashboard
-      </Button>
-    </Link>
-    )
-  ) : (
+  const isFullyRegistered = user?.isOnboarded && user?.registrationPaid;
+  const inFlow = pathname ? FLOW_PATHS.some(p => pathname.startsWith(p)) : false;
+
+  if (isFullyRegistered) {
+    return pathname === "/dashboard" ? null : (
+      <Link href="/dashboard" onClick={onNavigate}>
+        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex py-4">
+          Dashboard
+        </Button>
+      </Link>
+    );
+  }
+  if (inFlow) return null;
+  return (
     <Link href="/onboarding" onClick={onNavigate}>
-      <Button  className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex py-4">
+      <Button className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex py-4">
         Complete Setup
       </Button>
     </Link>
   );
 }
 
-function AuthedMobileActions({ onNavigate }: { onNavigate: () => void }) {
+function AuthedMobileActions({ onNavigate, pathname }: { onNavigate: () => void; pathname: string }) {
   const user = useQuery(api.users.current);
-  return user?.isOnboarded ? (
-    <Link href="/dashboard" onClick={onNavigate}>
-      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Dashboard</Button>
-    </Link>
-  ) : (
+  const isFullyRegistered = user?.isOnboarded && user?.registrationPaid;
+  const inFlow = FLOW_PATHS.some(p => pathname.startsWith(p));
+
+  if (isFullyRegistered) {
+    return (
+      <Link href="/dashboard" onClick={onNavigate}>
+        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Dashboard</Button>
+      </Link>
+    );
+  }
+  if (inFlow) return null;
+  return (
     <Link href="/onboarding" onClick={onNavigate}>
       <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Complete Setup</Button>
     </Link>
@@ -45,12 +59,12 @@ function AuthedMobileActions({ onNavigate }: { onNavigate: () => void }) {
 
 function ThemeToggle() {
   const { setTheme, resolvedTheme } = useTheme();
-  if (!resolvedTheme) return null;
   return (
     <button
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
       className="h-9 w-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
       aria-label="Toggle theme"
+      suppressHydrationWarning
     >
       {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </button>
@@ -172,7 +186,7 @@ export default function Navbar() {
                       </Link>
                     </Unauthenticated>
                     <Authenticated>
-                      <AuthedMobileActions onNavigate={() => setSheetOpen(false)} />
+                      <AuthedMobileActions onNavigate={() => setSheetOpen(false)} pathname={pathname} />
                     </Authenticated>
                   </div>
                 </SheetContent>

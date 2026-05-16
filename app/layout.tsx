@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Nunito } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
@@ -8,7 +8,12 @@ import Navbar from "@/components/Navbar";
 import { Toaster } from "sonner";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
-const geist = Geist({ variable: "--font-sans", subsets: ["latin"] });
+
+const nunito = Nunito({
+  subsets: ["latin"],
+  variable: "--font-nunito",
+  display: "swap",
+});
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://www.heritage-cooperative.com.ng";
 
@@ -242,14 +247,14 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-NG" className={geist.variable} suppressHydrationWarning>
+    <html lang="en-NG" className={nunito.variable} suppressHydrationWarning>
       <head>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body className="min-h-screen bg-background text-foreground antialiased">
+      <body className={`${nunito.className} min-h-screen bg-background text-foreground antialiased`}>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-emerald-600 focus:text-white focus:rounded-md focus:outline-none"

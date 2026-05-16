@@ -4,24 +4,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { api } from "../../../../convex/_generated/api";
 import type { SquadWebhookBody } from "@/types/squad";
 
-
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-// Best-effort in-memory rate limiter (per serverless instance).
-// Protects against flood/DoS; HMAC validation is the fraud guard.
-const RATE_LIMIT = 30;        // max requests
-const WINDOW_MS = 60_000;     // per 60 seconds
+const RATE_LIMIT = 30;
+const WINDOW_MS = 60_000;
+const REG_REF_PATTERN = /HC-\d{4}-\d{6}/;
 
 const ipWindows = new Map<string, { count: number; windowStart: number }>();
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
-
-  // Purge entries older than two windows to prevent unbounded growth
   for (const [key, entry] of ipWindows) {
     if (now - entry.windowStart > WINDOW_MS * 2) ipWindows.delete(key);
   }
-
   const entry = ipWindows.get(ip);
   if (!entry || now - entry.windowStart > WINDOW_MS) {
     ipWindows.set(ip, { count: 1, windowStart: now });
@@ -79,8 +74,31 @@ export async function POST(request: NextRequest) {
     }
 
     const tx = body.Body;
-    const paymentInfo = tx.payment_information || {};
 
+    // Detect registration payments by matching the HC-YYYY-NNNNNN ref in narration
+    const narration: string = tx.narration ?? "";
+    const refMatch = narration.match(REG_REF_PATTERN);
+    const isRegistrationPayment = refMatch !== null;
+
+    if (isRegistrationPayment) {
+      const registrationRef = refMatch[0];
+      const result = await convex.action(api.registration.processRegistrationPayment, {
+        webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
+        registrationRef,
+        transactionRef: body.TransactionRef,
+        amount: tx.amount,
+      });
+
+      if (result.status === "not_found") {
+        console.error(`Squad webhook: no user found for registrationRef ${registrationRef}`);
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      return NextResponse.json(result);
+    }
+
+    // Contribution payment — match by email
+    const paymentInfo = tx.payment_information || {};
     const result = await convex.action(api.webhooks.processSquadPayment, {
       webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
       transactionRef: body.TransactionRef,

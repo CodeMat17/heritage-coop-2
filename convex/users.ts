@@ -34,7 +34,10 @@ export const upsertFromClerk = internalMutation({
 
     const user = await userByExternalId(ctx, data.id);
     if (user === null) {
-      await ctx.db.insert("users", { ...userAttributes, isOnboarded: false });
+      const year = new Date().getFullYear();
+      const suffix = Math.floor(100000 + Math.random() * 900000);
+      const registrationRef = `HC-${year}-${suffix}`;
+      await ctx.db.insert("users", { ...userAttributes, isOnboarded: false, registrationRef });
     } else {
       await ctx.db.patch(user._id, {
         name: userAttributes.name,

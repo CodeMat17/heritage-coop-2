@@ -27,11 +27,11 @@ const fadeUp = {
 const stagger = { show: { transition: { staggerChildren: 0.1 } } };
 
 const PACKAGES = [
-  { id: "bronze", name: "Bronze", daily: 500, loan: 100_000, desc: "Start small and build the savings habit." },
-  { id: "silver", name: "Silver", daily: 1_000, loan: 180_000, desc: "Balanced plan for steady savers." },
-  { id: "gold", name: "Gold", daily: 2_000, loan: 360_000, desc: "Double your momentum towards bigger goals.", popular: true },
-  { id: "diamond", name: "Diamond", daily: 5_000, loan: 1_000_000, desc: "High-capacity savings for ambitious targets." },
-  { id: "emerald", name: "Emerald", daily: 10_000, loan: 2_000_000, desc: "Elite savings for maximum leverage." },
+  { id: "bronze",  name: "Bronze",  daily: 500,    loan: 100_000,   regFee: 5_000,  desc: "Start small and build the savings habit." },
+  { id: "silver",  name: "Silver",  daily: 1_000,  loan: 180_000,   regFee: 10_000, desc: "Balanced plan for steady savers." },
+  { id: "gold",    name: "Gold",    daily: 2_000,  loan: 360_000,   regFee: 20_000, desc: "Double your momentum towards bigger goals.", popular: true },
+  { id: "diamond", name: "Diamond", daily: 5_000,  loan: 1_000_000, regFee: 30_000, desc: "High-capacity savings for ambitious targets." },
+  { id: "emerald", name: "Emerald", daily: 10_000, loan: 2_000_000, regFee: 40_000, desc: "Elite savings for maximum leverage." },
 ];
 
 const HOW_IT_WORKS = [
@@ -282,6 +282,10 @@ export default function HomePage() {
                       <p className={`text-xs ${pkg.popular ? "text-emerald-200" : "text-muted-foreground"}`}>Loan</p>
                       <p className={`font-bold text-lg ${pkg.popular ? "text-white" : "text-emerald-600"}`}>{fmt(pkg.loan)}</p>
                     </div>
+                    <div className={`border-t pt-1.5 ${pkg.popular ? "border-emerald-500" : "border-border"}`}>
+                      <p className={`text-xs ${pkg.popular ? "text-emerald-200" : "text-muted-foreground"}`}>Registration fee</p>
+                      <p className={`text-sm font-bold ${pkg.popular ? "text-white" : "text-foreground"}`}>{fmt(pkg.regFee)}</p>
+                    </div>
                   </div>
                   <Link href="/sign-up" className="mt-auto">
                     <Button
@@ -398,11 +402,11 @@ export default function HomePage() {
           <motion.div variants={fadeUp} className="flex flex-wrap justify-center gap-3">
             <Link href="/sign-up">
               <Button size="lg" className="bg-white text-emerald-700 hover:bg-emerald-50 h-12 px-8 text-base font-semibold">
-                Create Free Account
+                Create Account
               </Button>
             </Link>
             <Link href="#packages">
-              <Button size="lg" variant="outline" className="border-white/40 text-white hover:bg-white/10 h-12 px-8 text-base">
+              <Button size="lg" variant="outline" className="bg-transparent  border-white/40 text-white hover:bg-white/10 h-12 px-8 text-base">
                 View Packages
               </Button>
             </Link>

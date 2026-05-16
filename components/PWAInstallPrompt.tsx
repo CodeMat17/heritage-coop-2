@@ -29,18 +29,17 @@ function isSnoozed() {
 export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
-  const [isIOS, setIsIOS] = useState(false);
+  const [isIOS] = useState(
+    () => typeof window !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  );
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (isAlreadyInstalled() || isSnoozed()) return;
 
-    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    if (ios) {
-      setIsIOS(true);
-      setVisible(true);
-      return;
+    if (isIOS) {
+      const t = setTimeout(() => setVisible(true), 0);
+      return () => clearTimeout(t);
     }
 
     const handler = (e: Event) => {
@@ -61,7 +60,7 @@ export default function PWAInstallPrompt() {
       window.removeEventListener("beforeinstallprompt", handler);
       window.removeEventListener("appinstalled", onInstalled);
     };
-  }, []);
+  }, [isIOS]);
 
   function snooze() {
     localStorage.setItem(REMIND_LATER_KEY, String(Date.now() + REMIND_DELAY_MS));

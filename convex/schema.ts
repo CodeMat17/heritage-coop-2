@@ -9,7 +9,14 @@ export default defineSchema({
     isOnboarded: v.optional(v.boolean()),
     selectedPackage: v.optional(v.string()),
     packageSelectedAt: v.optional(v.number()),
-  }).index("byExternalId", ["externalId"]).index("byEmail", ["email"]),
+    registrationRef: v.optional(v.string()),
+    registrationPaid: v.optional(v.boolean()),
+    registrationPaidAt: v.optional(v.number()),
+    isAdmin: v.optional(v.boolean()),
+  })
+    .index("byExternalId", ["externalId"])
+    .index("byEmail", ["email"])
+    .index("byRegistrationRef", ["registrationRef"]),
 
   userData: defineTable({
     userId: v.id("users"),
