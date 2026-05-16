@@ -2,58 +2,55 @@
 
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { SignInButton, UserButton } from "@clerk/nextjs";
-import { Authenticated, Unauthenticated, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { Authenticated, Unauthenticated } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Building2, Moon, Sun, Menu } from "lucide-react";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
-const FLOW_PATHS = ["/onboarding", "/select-package", "/payment-instructions"];
-
 function AuthedNavActions({ onNavigate, pathname }: { onNavigate?: () => void; pathname?: string }) {
-  const user = useQuery(api.users.current);
-  const isFullyRegistered = user?.isOnboarded && user?.registrationPaid;
-  const inFlow = pathname ? FLOW_PATHS.some(p => pathname.startsWith(p)) : false;
+  const { user: clerkUser } = useUser();
+  const isAdmin = clerkUser?.publicMetadata?.role === "admin";
 
-  if (isFullyRegistered) {
-    return pathname === "/dashboard" ? null : (
-      <Link href="/dashboard" onClick={onNavigate}>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex py-4">
-          Dashboard
-        </Button>
-      </Link>
-    );
-  }
-  if (inFlow) return null;
   return (
-    <Link href="/onboarding" onClick={onNavigate}>
-      <Button className="bg-emerald-600 hover:bg-emerald-700 text-white hidden sm:flex py-4">
-        Complete Setup
-      </Button>
-    </Link>
+    <div className="flex items-center gap-2 px-2">
+      {pathname !== "/dashboard" && (
+        <Link href="/dashboard" onClick={onNavigate}>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white hidden md:flex py-4">
+            Dashboard
+          </Button>
+        </Link>
+      )}
+      {isAdmin && pathname !== "/dashboard/admin" && (
+        <Link href="/dashboard/admin" onClick={onNavigate}>
+          <Button variant="outline" className="hidden sm:flex py-4">
+            Admin
+          </Button>
+        </Link>
+      )}
+    </div>
   );
 }
 
 function AuthedMobileActions({ onNavigate, pathname }: { onNavigate: () => void; pathname: string }) {
-  const user = useQuery(api.users.current);
-  const isFullyRegistered = user?.isOnboarded && user?.registrationPaid;
-  const inFlow = FLOW_PATHS.some(p => pathname.startsWith(p));
+  const { user: clerkUser } = useUser();
+  const isAdmin = clerkUser?.publicMetadata?.role === "admin";
 
-  if (isFullyRegistered) {
-    return (
-      <Link href="/dashboard" onClick={onNavigate}>
-        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Dashboard</Button>
-      </Link>
-    );
-  }
-  if (inFlow) return null;
   return (
-    <Link href="/onboarding" onClick={onNavigate}>
-      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Complete Setup</Button>
-    </Link>
+    <div className="flex flex-col gap-2">
+      {pathname !== "/dashboard" && (
+        <Link href="/dashboard" onClick={onNavigate}>
+          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Dashboard</Button>
+        </Link>
+      )}
+      {isAdmin && pathname !== "/dashboard/admin" && (
+        <Link href="/dashboard/admin" onClick={onNavigate}>
+          <Button variant="outline" className="w-full">Admin</Button>
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -109,7 +106,7 @@ export default function Navbar() {
           )}
 
           {/* Right actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {/* Theme toggle — desktop */}
             <span className="">
               <ThemeToggle />
@@ -136,7 +133,7 @@ export default function Navbar() {
               <Sheet key={pathname} open={sheetOpen} onOpenChange={setSheetOpen}>
                 <SheetTrigger asChild>
                   <button
-                    className="md:hidden h-9 w-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground"
+                    className="ml-2.5 md:hidden h-9 w-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground"
                     aria-label="Open menu"
                   >
                     <Menu className="h-4 w-4" />

@@ -8,11 +8,20 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks(.*)",
 ]);
 
+const isAdminRoute = createRouteMatcher(["/dashboard/admin(.*)"]);
+
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (isPublicRoute(req)) return NextResponse.next();
 
-  const { userId, redirectToSignIn } = await auth();
+  const { userId, redirectToSignIn, sessionClaims } = await auth();
   if (!userId) return redirectToSignIn({ returnBackUrl: req.url });
+
+  if (isAdminRoute(req)) {
+    const role = (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;
+    if (role !== "admin") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  }
 
   return NextResponse.next();
 });

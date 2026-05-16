@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useUser } from "@clerk/nextjs";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -108,6 +109,7 @@ export default function HomePage() {
   const { isAuthenticated } = useConvexAuth();
   const currentUser = useQuery(api.users.current, isAuthenticated ? {} : "skip");
   const showDashboard = isAuthenticated && currentUser?.isOnboarded === true;
+ 
 
   return (
     <div className="overflow-x-hidden">
@@ -155,6 +157,7 @@ export default function HomePage() {
                   View Packages
                 </Button>
               </Link>
+
             </motion.div>
 
             <motion.div variants={fadeUp} className="flex flex-wrap gap-x-6 gap-y-2">

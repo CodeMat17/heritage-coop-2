@@ -140,10 +140,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (convexUser === undefined) return;
-    if (clerkUser?.publicMetadata?.role === "admin") {
-      router.replace("/dashboard/admin");
-      return;
-    }
     if (convexUser === null) return;
     if (!convexUser.isOnboarded) router.replace("/onboarding");
     else if (!convexUser.selectedPackage) router.replace("/select-package");
