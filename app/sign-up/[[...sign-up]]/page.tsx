@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function Page() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (isSignedIn) router.replace("/dashboard");
-  }, [isSignedIn, router]);
+    if (isLoaded && isSignedIn) router.replace("/onboarding");
+  }, [isLoaded, isSignedIn, router]);
 
-  if (isSignedIn) return null;
+  if (!isLoaded || isSignedIn) return null;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12">

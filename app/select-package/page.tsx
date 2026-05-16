@@ -39,8 +39,8 @@ export default function SelectPackagePage() {
     if (user === undefined || user === null) return;
     if (!user.isOnboarded) router.replace("/onboarding");
     else if (user.registrationPaid) router.replace("/dashboard");
-    else if (user.selectedPackage && !selected) setSelected(user.selectedPackage);
-  }, [user, selected, router]);
+    else if (user.selectedPackage && !user.registrationPaid) router.replace("/payment-instructions");
+  }, [user, router]);
 
   async function handleConfirm() {
     if (!selected) { toast.error("Please select a package."); return; }
