@@ -141,10 +141,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (convexUser === undefined) return;
-    if (convexUser === null) return;
-    if (!convexUser.isOnboarded) router.replace("/onboarding");
-    else if (!convexUser.selectedPackage) router.replace("/select-package");
-    else if (convexUser.selectedPackage && !convexUser.registrationPaid) router.replace("/payment-instructions");
+    if (convexUser === null || !convexUser.isOnboarded) { router.replace("/onboarding"); return; }
+    if (!convexUser.selectedPackage) { router.replace("/select-package"); return; }
+    if (!convexUser.registrationPaid) router.replace("/payment-instructions");
   }, [convexUser, clerkUser, router]);
 
   const pkg = convexUser?.selectedPackage ? PACKAGES[convexUser.selectedPackage] : null;
