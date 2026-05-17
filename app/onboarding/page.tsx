@@ -120,14 +120,15 @@ export default function OnboardingPage() {
   const [step, setStep] = React.useState(1);
   const [submitting, setSubmitting] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const router = useRouter();
   const convexUser = useQuery(api.users.current);
   const upsertUser = useMutation(api.users.upsertUserData);
 
   React.useEffect(() => {
+    if (isLoading) return;
     if (!isAuthenticated) router.replace("/sign-in");
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   React.useEffect(() => {
     if (convexUser === null) return;

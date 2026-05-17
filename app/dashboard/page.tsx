@@ -123,7 +123,7 @@ function formatDateDisplay(iso: string) {
 // }
 
 export default function DashboardPage() {
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const { user: clerkUser } = useUser();
   const router = useRouter();
   const convexUser = useQuery(api.users.current);
@@ -135,8 +135,9 @@ export default function DashboardPage() {
 
   // Auth guards
   useEffect(() => {
+    if (isLoading) return;
     if (!isAuthenticated) router.replace("/sign-in");
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
     if (convexUser === undefined) return;

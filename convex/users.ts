@@ -137,6 +137,21 @@ export const upsertUserData = mutation({
   },
 });
 
+export const ensureRegistrationRef = mutation({
+  args: {},
+  async handler(ctx) {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await userByExternalId(ctx, identity.subject);
+    if (!user) throw new Error("User not found");
+    if (!user.registrationRef) {
+      const year = new Date().getFullYear();
+      const suffix = Math.floor(100000 + Math.random() * 900000);
+      await ctx.db.patch(user._id, { registrationRef: `HC-${year}-${suffix}` });
+    }
+  },
+});
+
 export const selectPackage = mutation({
   args: { packageId: v.string() },
   async handler(ctx, { packageId }) {

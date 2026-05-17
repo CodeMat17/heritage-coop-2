@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "@/convex/_generated/api";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
@@ -33,6 +33,13 @@ export default function PaymentInstructionsPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const router = useRouter();
   const convexUser = useQuery(api.users.current);
+  const ensureRef = useMutation(api.users.ensureRegistrationRef);
+
+  useEffect(() => {
+    if (convexUser && !convexUser.registrationRef) {
+      ensureRef();
+    }
+  }, [convexUser, ensureRef]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.replace("/sign-in");
