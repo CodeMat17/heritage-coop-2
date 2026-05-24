@@ -9,7 +9,7 @@ interface SquadConfig {
   metadata?: Record<string, unknown>;
   onLoad?: () => void;
   onClose?: () => void;
-  onSuccess?: (data: import("./squad").SquadSuccessData) => void;
+  onSuccess?: (data: import("./squad").SquadSuccessData) => void | Promise<void>;
 }
 
 interface SquadInstance {

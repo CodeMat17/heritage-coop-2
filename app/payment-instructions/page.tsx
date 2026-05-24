@@ -5,8 +5,8 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Clock, CreditCard } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, Clock } from "lucide-react";
+import SquadPayButton from "@/components/SquadPayButton";
 
 const REGISTRATION_FEES: Record<string, number> = {
   bronze:  5_000,
@@ -16,23 +16,8 @@ const REGISTRATION_FEES: Record<string, number> = {
   emerald: 40_000,
 };
 
-const SQUAD_PAYMENT_LINKS: Record<string, string> = {
-  bronze:  process.env.NEXT_PUBLIC_SQUAD_LINK_BRONZE  ?? "",
-  silver:  process.env.NEXT_PUBLIC_SQUAD_LINK_SILVER  ?? "",
-  gold:    process.env.NEXT_PUBLIC_SQUAD_LINK_GOLD    ?? "",
-  diamond: process.env.NEXT_PUBLIC_SQUAD_LINK_DIAMOND ?? "",
-  emerald: process.env.NEXT_PUBLIC_SQUAD_LINK_EMERALD ?? "",
-};
-
 function fmt(n: number) {
   return `₦${n.toLocaleString("en-NG")}`;
-}
-
-function buildSquadUrl(baseUrl: string, name: string, email: string): string {
-  const url = new URL(baseUrl);
-  if (name) url.searchParams.set("name", name);
-  if (email) url.searchParams.set("email", email);
-  return url.toString();
 }
 
 export default function PaymentInstructionsPage() {
@@ -62,11 +47,7 @@ export default function PaymentInstructionsPage() {
   const pkg = convexUser?.selectedPackage ?? "";
   const fee = REGISTRATION_FEES[pkg] ?? 0;
   const pkgLabel = pkg ? pkg.charAt(0).toUpperCase() + pkg.slice(1) : "";
-  const baseLink = SQUAD_PAYMENT_LINKS[pkg] ?? "";
-  const squadLink =
-    baseLink && convexUser
-      ? buildSquadUrl(baseLink, convexUser.name ?? "", convexUser.email ?? "")
-      : baseLink;
+  const email = convexUser?.email ?? "";
 
   return (
     <div className="min-h-screen bg-muted/30 flex justify-center px-4 py-12">
@@ -92,20 +73,19 @@ export default function PaymentInstructionsPage() {
             <p className="text-3xl font-bold text-emerald-600">{fmt(fee)}</p>
           </div>
 
-          {squadLink ? (
-            <Button
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-              onClick={() => { window.location.href = squadLink; }}>
-              <CreditCard className="h-4 w-4" />
-              {`Pay ${fmt(fee)} Now`}
-            </Button>
+          {email && fee > 0 ? (
+            <SquadPayButton
+              email={email}
+              amount={fee}
+              label={`Pay ${fmt(fee)} Now`}
+              onPaymentSuccess={() => router.replace("/dashboard")}
+            />
           ) : null}
 
           <div className="flex items-start gap-2 text-xs text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />
             <span>
-              Your account will be activated automatically within a few minutes of payment.
-              This page will redirect you once confirmed — no need to refresh manually.
+              Your account will be activated automatically once payment is confirmed.
             </span>
           </div>
         </div>

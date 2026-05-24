@@ -1,3 +1,24 @@
+export interface SquadSuccessData {
+  transaction_ref: string;
+  [key: string]: unknown;
+}
+
+export interface SquadVerifyResponse {
+  status: number;
+  success: boolean;
+  message: string;
+  data: {
+    transaction_ref: string;
+    gateway_ref?: string;
+    transaction_status: string;
+    email: string;
+    amount: number;
+    merchant_amount?: number;
+    currency?: string;
+    meta?: Record<string, unknown>;
+  };
+}
+
 export interface SquadWebhookPaymentInfo {
   payment_type?: string;
   card_type?: string;
