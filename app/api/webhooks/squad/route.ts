@@ -8,7 +8,14 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 const RATE_LIMIT = 30;
 const WINDOW_MS = 60_000;
-const REG_REF_PATTERN = /HC-\d{4}-\d{6}/;
+
+const REGISTRATION_FEES: Record<string, number> = {
+  bronze: 5_000,
+  silver: 10_000,
+  gold: 20_000,
+  diamond: 30_000,
+  emerald: 40_000,
+};
 
 const ipWindows = new Map<string, { count: number; windowStart: number }>();
 
@@ -75,29 +82,26 @@ export async function POST(request: NextRequest) {
 
     const tx = body.Body;
 
-    // Detect registration payments by matching the HC-YYYY-NNNNNN ref in narration
-    const narration: string = tx.narration ?? "";
-    const refMatch = narration.match(REG_REF_PATTERN);
-    const isRegistrationPayment = refMatch !== null;
+    // Detect registration payments: amount matches the user's package fee and
+    // registrationPaid is false. We attempt the registration action first; if the
+    // user is not found or already paid it falls through to the contribution flow.
+    const registrationResult = await convex.action(api.registration.processRegistrationPayment, {
+      webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
+      email: tx.email,
+      transactionRef: body.TransactionRef,
+      amount: tx.amount,
+    });
 
-    if (isRegistrationPayment) {
-      const registrationRef = refMatch[0];
-      const result = await convex.action(api.registration.processRegistrationPayment, {
-        webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
-        registrationRef,
-        transactionRef: body.TransactionRef,
-        amount: tx.amount,
-      });
-
-      if (result.status === "not_found") {
-        console.error(`Squad webhook: no user found for registrationRef ${registrationRef}`);
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
-      }
-
-      return NextResponse.json(result);
+    if (
+      registrationResult.status === "ok" ||
+      registrationResult.status === "duplicate" ||
+      registrationResult.status === "insufficient_amount" ||
+      registrationResult.status === "unauthorized"
+    ) {
+      return NextResponse.json(registrationResult);
     }
 
-    // Contribution payment — match by email
+    // user_not_found — treat as a contribution payment
     const paymentInfo = tx.payment_information || {};
     const result = await convex.action(api.webhooks.processSquadPayment, {
       webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,

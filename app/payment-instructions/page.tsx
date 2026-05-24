@@ -1,17 +1,12 @@
 "use client";
 
 import { api } from "@/convex/_generated/api";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
-import { Copy, CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-
-const ACCOUNT_NAME = process.env.NEXT_PUBLIC_SQUAD_ACCOUNT_NAME ?? "HERITAGE PORT-HARCOURT MULTI-PURPOSE CO-OPERATIVE SOCIETY LIMITED";
-const ACCOUNT_NUMBER = process.env.NEXT_PUBLIC_SQUAD_ACCOUNT_NUMBER ?? "0074256241";
-const BANK_NAME = process.env.NEXT_PUBLIC_SQUAD_BANK_NAME ?? "STANBIC IBTC BANK PLC";
 
 const REGISTRATION_FEES: Record<string, number> = {
   bronze:  5_000,
@@ -21,25 +16,29 @@ const REGISTRATION_FEES: Record<string, number> = {
   emerald: 40_000,
 };
 
+const SQUAD_PAYMENT_LINKS: Record<string, string> = {
+  bronze:  process.env.NEXT_PUBLIC_SQUAD_LINK_BRONZE  ?? "",
+  silver:  process.env.NEXT_PUBLIC_SQUAD_LINK_SILVER  ?? "",
+  gold:    process.env.NEXT_PUBLIC_SQUAD_LINK_GOLD    ?? "",
+  diamond: process.env.NEXT_PUBLIC_SQUAD_LINK_DIAMOND ?? "",
+  emerald: process.env.NEXT_PUBLIC_SQUAD_LINK_EMERALD ?? "",
+};
+
 function fmt(n: number) {
   return `₦${n.toLocaleString("en-NG")}`;
 }
 
-function copy(text: string, label: string) {
-  navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied`));
+function buildSquadUrl(baseUrl: string, name: string, email: string): string {
+  const url = new URL(baseUrl);
+  if (name) url.searchParams.set("name", name);
+  if (email) url.searchParams.set("email", email);
+  return url.toString();
 }
 
 export default function PaymentInstructionsPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const router = useRouter();
   const convexUser = useQuery(api.users.current);
-  const ensureRef = useMutation(api.users.ensureRegistrationRef);
-
-  useEffect(() => {
-    if (convexUser && !convexUser.registrationRef) {
-      ensureRef();
-    }
-  }, [convexUser, ensureRef]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.replace("/sign-in");
@@ -60,13 +59,17 @@ export default function PaymentInstructionsPage() {
     );
   }
 
-  const ref = convexUser?.registrationRef ?? "—";
   const pkg = convexUser?.selectedPackage ?? "";
   const fee = REGISTRATION_FEES[pkg] ?? 0;
   const pkgLabel = pkg ? pkg.charAt(0).toUpperCase() + pkg.slice(1) : "";
+  const baseLink = SQUAD_PAYMENT_LINKS[pkg] ?? "";
+  const squadLink =
+    baseLink && convexUser
+      ? buildSquadUrl(baseLink, convexUser.name ?? "", convexUser.email ?? "")
+      : baseLink;
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-muted/30 flex justify-center px-4 py-12">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -77,7 +80,7 @@ export default function PaymentInstructionsPage() {
           </div>
           <h1 className="text-2xl font-bold">Complete Your Registration</h1>
           <p className="text-sm text-muted-foreground">
-            Transfer the registration fee to activate your {pkgLabel} account.
+            Pay the registration fee to activate your {pkgLabel} account.
           </p>
         </div>
 
@@ -89,46 +92,14 @@ export default function PaymentInstructionsPage() {
             <p className="text-3xl font-bold text-emerald-600">{fmt(fee)}</p>
           </div>
 
-          <div className="space-y-3">
-            {[
-              { label: "Bank name", value: BANK_NAME },
-              { label: "Account number", value: ACCOUNT_NUMBER },
-              { label: "Account name", value: ACCOUNT_NAME },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-sm font-semibold">{value}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
-                  onClick={() => copy(value, label)}>
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4 space-y-1">
-            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
-              Important — Payment narration / description
-            </p>
-            <p className="text-xs text-muted-foreground">
-              You must include this code as the narration when making the transfer:
-            </p>
-            <div className="flex items-center justify-between mt-2">
-              <p className="text-lg font-bold font-mono tracking-widest">{ref}</p>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => copy(ref, "Reference code")}>
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+          {squadLink ? (
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              onClick={() => { window.location.href = squadLink; }}>
+              <CreditCard className="h-4 w-4" />
+              {`Pay ${fmt(fee)} Now`}
+            </Button>
+          ) : null}
 
           <div className="flex items-start gap-2 text-xs text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />

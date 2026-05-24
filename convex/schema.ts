@@ -12,6 +12,7 @@ export default defineSchema({
     registrationRef: v.optional(v.string()),
     registrationPaid: v.optional(v.boolean()),
     registrationPaidAt: v.optional(v.number()),
+    registrationAmountPaid: v.optional(v.number()),
     isAdmin: v.optional(v.boolean()),
   })
     .index("byExternalId", ["externalId"])
