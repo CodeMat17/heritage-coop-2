@@ -7,8 +7,8 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 const SQUAD_BASE_URL =
   process.env.SQUAD_ENV === "production"
-    ? "https://api.squadco.com"
-    : "https://api-d.squadco.com";
+    ? "https://api-d.squadco.com"
+    : "https://sandbox-api-d.squadco.com";
 
 // Simple per-IP rate limit: max 10 verify calls per minute
 const RATE_LIMIT = 10;
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Could not reach payment gateway" }, { status: 502 });
   }
 
-  if (!squadData.success || squadData.data?.transaction_status !== "success") {
+  if (!squadData.success || squadData.data?.transaction_status?.toLowerCase() !== "success") {
     console.warn(
       `Squad verify: non-success status for ref=${transactionRef}`,
       squadData.data?.transaction_status
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Payment not confirmed by gateway" }, { status: 402 });
   }
 
-  const { email, amount } = squadData.data;
+  const { email, transaction_amount: amount } = squadData.data;
 
   if (!email || typeof amount !== "number") {
     console.error("Squad verify: missing email or amount in response", squadData.data);

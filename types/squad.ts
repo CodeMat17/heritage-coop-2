@@ -12,7 +12,7 @@ export interface SquadVerifyResponse {
     gateway_ref?: string;
     transaction_status: string;
     email: string;
-    amount: number;
+    transaction_amount: number;
     merchant_amount?: number;
     currency?: string;
     meta?: Record<string, unknown>;

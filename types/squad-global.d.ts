@@ -6,6 +6,7 @@ interface SquadConfig {
   currency_code?: string;
   customer_name?: string;
   transaction_ref?: string;
+  CallBack_URL?: string;
   metadata?: Record<string, unknown>;
   onLoad?: () => void;
   onClose?: () => void;
