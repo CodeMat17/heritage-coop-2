@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const SQUAD_INITIATE_URL =
   process.env.SQUAD_ENV === "production"
     ? "https://api-d.squadco.com/transaction/initiate"
-    : "https://sandbox-api-d.squadco.com/transaction/initiate";
+    : "https://sandbox-api.squadco.com/transaction/initiate";
 
 export async function POST(request: NextRequest) {
   const secretKey = process.env.SQUAD_SECRET_KEY;

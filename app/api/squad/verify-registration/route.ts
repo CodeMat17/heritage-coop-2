@@ -8,7 +8,7 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 const SQUAD_BASE_URL =
   process.env.SQUAD_ENV === "production"
     ? "https://api-d.squadco.com"
-    : "https://sandbox-api-d.squadco.com";
+    : "https://sandbox-api.squadco.com";
 
 // Simple per-IP rate limit: max 10 verify calls per minute
 const RATE_LIMIT = 10;
