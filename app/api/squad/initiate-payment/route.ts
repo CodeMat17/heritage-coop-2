@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         email,
         amount,
         currency: "NGN",
-        initiate_type: "inline",
+        initiate_type: "redirect",
         transaction_ref: transactionRef,
         pass_charge: true,
         ...(process.env.NEXT_PUBLIC_BASE_URL
