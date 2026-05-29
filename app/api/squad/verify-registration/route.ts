@@ -10,7 +10,12 @@ const SQUAD_BASE_URL =
     ? "https://api-d.squadco.com"
     : "https://sandbox-api-d.squadco.com";
 
-// Simple per-IP rate limit: max 10 verify calls per minute
+const SQUAD_HEADERS = (secretKey: string) => ({
+  Authorization: `Bearer ${secretKey}`,
+  Accept: "application/json",
+  "User-Agent": "HeritageCoop/1.0",
+});
+
 const RATE_LIMIT = 10;
 const WINDOW_MS = 60_000;
 const ipWindows = new Map<string, { count: number; windowStart: number }>();
@@ -52,26 +57,21 @@ export async function POST(request: NextRequest) {
     if (!transactionRef || typeof transactionRef !== "string") {
       return NextResponse.json({ error: "transactionRef is required" }, { status: 400 });
     }
-    // Sanity-check the ref looks like a reasonable string (alphanumeric + dash/underscore)
-    if (!/^[A-Za-z0-9_\-]{4,128}$/.test(transactionRef)) {
+    if (!/^[A-Za-z0-9_-]{4,128}$/.test(transactionRef)) {
       return NextResponse.json({ error: "Invalid transactionRef format" }, { status: 400 });
     }
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Verify the transaction server-side using the secret key.
-  // Amount, email, and status all come directly from Squad — the client cannot influence these.
   let squadData: SquadVerifyResponse;
   try {
     const res = await fetch(
       `${SQUAD_BASE_URL}/transaction/verify/${encodeURIComponent(transactionRef)}`,
       {
-        headers: {
-          Authorization: `Bearer ${secretKey}`,
-          "Content-Type": "application/json",
-        },
+        headers: SQUAD_HEADERS(secretKey),
         cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
       }
     );
 
@@ -105,7 +105,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Incomplete payment data from gateway" }, { status: 502 });
   }
 
-  // Delegate to Convex — same action the webhook uses, protected by CONVEX_WEBHOOK_SECRET.
   const result = await convex.action(api.registration.processRegistrationPayment, {
     webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
     email,
@@ -113,12 +112,7 @@ export async function POST(request: NextRequest) {
     amount,
   });
 
-  if (result.status === "ok") {
-    return NextResponse.json({ status: "ok" });
-  }
-
-  if (result.status === "duplicate") {
-    // Already paid — treat as success so the client redirects normally.
+  if (result.status === "ok" || result.status === "duplicate") {
     return NextResponse.json({ status: "ok" });
   }
 

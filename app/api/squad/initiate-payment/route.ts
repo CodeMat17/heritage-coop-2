@@ -5,6 +5,13 @@ const SQUAD_INITIATE_URL =
     ? "https://api-d.squadco.com/transaction/initiate"
     : "https://sandbox-api-d.squadco.com/transaction/initiate";
 
+const SQUAD_HEADERS = (secretKey: string) => ({
+  Authorization: `Bearer ${secretKey}`,
+  "Content-Type": "application/json",
+  Accept: "application/json",
+  "User-Agent": "HeritageCoop/1.0",
+});
+
 export async function POST(request: NextRequest) {
   const secretKey = process.env.SQUAD_SECRET_KEY;
   if (!secretKey) {
@@ -34,13 +41,10 @@ export async function POST(request: NextRequest) {
   try {
     const res = await fetch(SQUAD_INITIATE_URL, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: SQUAD_HEADERS(secretKey),
       body: JSON.stringify({
         email,
-        amount, // already in kobo from client
+        amount,
         currency: "NGN",
         initiate_type: "inline",
         transaction_ref: transactionRef,
@@ -50,6 +54,7 @@ export async function POST(request: NextRequest) {
           : {}),
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
     });
 
     const data = await res.json();
