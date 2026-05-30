@@ -15,52 +15,55 @@ interface SquadPayButtonProps {
   type?: SquadPayType;
 }
 
-const SQUAD_SDK_URL =
-  process.env.NEXT_PUBLIC_SQUAD_ENV === "production"
-    ? "https://checkout.squadco.com/widget/squad.min.js"
-    : "https://sandbox.squadco.com/squad.min.js";
+const SQUAD_SDK_URL = "/api/squad/sdk";
 const CALLBACK_PATH = "/payment-callback";
 const LOAD_TIMEOUT_MS = 30_000;
 const SDK_LOAD_TIMEOUT_MS = 15_000;
 
 function loadSquadSdk(): Promise<void> {
   return new Promise((resolve, reject) => {
+    console.log("[Squad] loadSquadSdk called, window.squad=", typeof window.squad);
     if (typeof window.squad !== "undefined") {
+      console.log("[Squad] already loaded, resolving");
       resolve();
       return;
     }
 
     const existing = document.getElementById("squad-sdk") as HTMLScriptElement | null;
+    console.log("[Squad] existing script tag=", existing, "failed=", existing?.dataset.failed);
     if (existing) {
       if (existing.dataset.failed) {
-        // Previous load errored — remove the dead tag and retry fresh.
         existing.remove();
       } else {
-        // Script is still in-flight; piggyback on it.
+        console.log("[Squad] piggybacking on in-flight script");
         const timer = setTimeout(
-          () => reject(new Error("Squad SDK load timed out")),
+          () => { console.error("[Squad] piggyback timed out"); reject(new Error("Squad SDK load timed out")); },
           SDK_LOAD_TIMEOUT_MS
         );
-        existing.addEventListener("load", () => { clearTimeout(timer); resolve(); });
-        existing.addEventListener("error", () => { clearTimeout(timer); reject(new Error("Squad SDK failed to load")); });
+        existing.addEventListener("load", () => { clearTimeout(timer); console.log("[Squad] piggyback resolved"); resolve(); });
+        existing.addEventListener("error", () => { clearTimeout(timer); console.error("[Squad] piggyback error"); reject(new Error("Squad SDK failed to load")); });
         return;
       }
     }
 
+    console.log("[Squad] injecting script tag, src=", SQUAD_SDK_URL);
     const script = document.createElement("script");
     script.id = "squad-sdk";
     script.src = SQUAD_SDK_URL;
     const timer = setTimeout(() => {
+      console.error("[Squad] script load timed out");
       script.remove();
       reject(new Error("Squad SDK load timed out"));
     }, SDK_LOAD_TIMEOUT_MS);
-    script.onload = () => { clearTimeout(timer); resolve(); };
-    script.onerror = () => {
+    script.onload = () => { clearTimeout(timer); console.log("[Squad] script onload fired, window.squad=", typeof window.squad); resolve(); };
+    script.onerror = (e) => {
       clearTimeout(timer);
       script.dataset.failed = "1";
+      console.error("[Squad] script onerror:", e, script.src);
       reject(new Error("Squad SDK failed to load"));
     };
     document.head.appendChild(script);
+    console.log("[Squad] script tag appended to head");
   });
 }
 
@@ -85,8 +88,15 @@ export default function SquadPayButton({
 
     try {
       await loadSquadSdk();
-    } catch {
+    } catch (err) {
+      console.error("[Squad] loadSquadSdk rejected:", err);
       toast.error("Could not load payment gateway. Please check your connection and try again.");
+      setLoading(false);
+      return;
+    }
+
+    if (typeof window.squad === "undefined") {
+      toast.error("Payment gateway unavailable. Please refresh and try again.");
       setLoading(false);
       return;
     }
