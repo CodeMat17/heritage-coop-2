@@ -10,8 +10,6 @@ const PACKAGE_LABELS: Record<string, string> = {
   emerald: "Emerald",
 };
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function sendWelcomeEmail(args: {
   email: string;
   name: string;
@@ -20,6 +18,7 @@ export async function sendWelcomeEmail(args: {
   transactionRef: string;
   paidAt: number;
 }): Promise<void> {
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const packageLabel = PACKAGE_LABELS[args.selectedPackage] ?? args.selectedPackage;
   const html = await render(
     RegistrationWelcome({
