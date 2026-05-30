@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as http from "../http.js";
+import type * as lib_bvnCrypto from "../lib/bvnCrypto.js";
 import type * as registration from "../registration.js";
 import type * as userContributions from "../userContributions.js";
 import type * as userData from "../userData.js";
@@ -26,6 +27,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   http: typeof http;
+  "lib/bvnCrypto": typeof lib_bvnCrypto;
   registration: typeof registration;
   userContributions: typeof userContributions;
   userData: typeof userData;

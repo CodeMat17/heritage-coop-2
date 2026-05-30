@@ -3,19 +3,12 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { api } from "../../../../convex/_generated/api";
 import type { SquadWebhookBody } from "@/types/squad";
+import { sendWelcomeEmail } from "@/lib/email";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 const RATE_LIMIT = 30;
 const WINDOW_MS = 60_000;
-
-const REGISTRATION_FEES: Record<string, number> = {
-  bronze: 5_000,
-  silver: 10_000,
-  gold: 20_000,
-  diamond: 30_000,
-  emerald: 40_000,
-};
 
 const ipWindows = new Map<string, { count: number; windowStart: number }>();
 
@@ -82,32 +75,60 @@ export async function POST(request: NextRequest) {
 
     const tx = body.Body;
 
-    // Detect registration payments: amount matches the user's package fee and
-    // registrationPaid is false. We attempt the registration action first; if the
-    // user is not found or already paid it falls through to the contribution flow.
+    // Try registration first.
     const registrationResult = await convex.action(api.registration.processRegistrationPayment, {
       webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
       email: tx.email,
       transactionRef: body.TransactionRef,
-      amount: tx.amount,
+      amount: Math.round(tx.amount / 100), // convert kobo → naira
     });
 
-    if (
-      registrationResult.status === "ok" ||
-      registrationResult.status === "duplicate" ||
-      registrationResult.status === "insufficient_amount" ||
-      registrationResult.status === "unauthorized"
-    ) {
-      return NextResponse.json(registrationResult);
+    if (registrationResult.status === "ok") {
+      // Send welcome email if not already sent (e.g. client-side verify ran first)
+      if (!registrationResult.emailAlreadySent) {
+        sendWelcomeEmail({
+          email: tx.email,
+          name: registrationResult.name,
+          selectedPackage: registrationResult.selectedPackage,
+          amount: Math.round(tx.amount / 100),
+          transactionRef: body.TransactionRef,
+          paidAt: registrationResult.paidAt,
+        })
+          .then(() =>
+            convex.mutation(api.registration.markWelcomeEmailSent, {
+              webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
+              userId: registrationResult.userId as never,
+            })
+          )
+          .catch((err) => console.error("webhook sendWelcomeEmail failed:", err));
+      }
+      return NextResponse.json({ status: "ok" });
     }
 
-    // user_not_found — treat as a contribution payment
+    if (registrationResult.status === "unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 500 });
+    }
+
+    // "duplicate" — registration already processed; fall through to contribution.
+    // "not_found" — no pre-registered user; fall through to contribution.
+    // "insufficient_amount" — payment too small for registration fee; do NOT
+    //   silently credit as a contribution, as the funds are likely meant for
+    //   registration. Log and reject so the admin can investigate.
+    if (registrationResult.status === "insufficient_amount") {
+      console.error(
+        `Squad webhook: insufficient registration payment for email=${tx.email} ` +
+          `ref=${body.TransactionRef} amount=₦${Math.round(tx.amount / 100)}`
+      );
+      return NextResponse.json({ error: "insufficient_amount" }, { status: 402 });
+    }
+
+    // Process as a daily contribution for "duplicate" and "not_found".
     const paymentInfo = tx.payment_information || {};
     const result = await convex.action(api.webhooks.processSquadPayment, {
       webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
       transactionRef: body.TransactionRef,
       email: tx.email,
-      amount: tx.amount,
+      amount: tx.amount, // processSquadPayment divides by 100 internally
       merchantAmount: tx.merchant_amount ?? tx.amount,
       currency: tx.currency ?? "NGN",
       transactionStatus: tx.transaction_status ?? "unknown",

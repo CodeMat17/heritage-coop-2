@@ -3,7 +3,6 @@ import { ConvexHttpClient } from "convex/browser";
 import { NextRequest, NextResponse } from "next/server";
 import { api } from "../../../../convex/_generated/api";
 import type { SquadVerifyResponse } from "@/types/squad";
-import { sendWelcomeEmail } from "@/lib/email";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -18,10 +17,6 @@ const SQUAD_HEADERS = (secretKey: string) => ({
   "User-Agent": "HeritageCoop/1.0",
 });
 
-// NOTE: Netlify Functions are stateless — this map resets on every cold start
-// and is NOT shared across concurrent instances. It limits only within a single
-// warm instance. For proper distributed rate-limiting, use Upstash Redis or
-// Netlify's built-in abuse protection. Kept here as a best-effort guard.
 const RATE_LIMIT = 10;
 const WINDOW_MS = 60_000;
 const ipWindows = new Map<string, { count: number; windowStart: number }>();
@@ -40,7 +35,7 @@ function isRateLimited(ip: string): boolean {
   return entry.count > RATE_LIMIT;
 }
 
-// payType is included in the HMAC so a token issued for "contribution" is
+// payType is bound into the HMAC so a token issued for "registration" is
 // rejected here and vice versa, preventing cross-type token misuse.
 function verifyHmacToken(
   secret: string,
@@ -73,13 +68,13 @@ export async function POST(request: NextRequest) {
 
   const secretKey = process.env.SQUAD_SECRET_KEY;
   if (!secretKey) {
-    console.error("verify-registration: SQUAD_SECRET_KEY not configured");
+    console.error("verify-contribution: SQUAD_SECRET_KEY not configured");
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
   const hmacSecret = process.env.PAYMENT_HMAC_SECRET;
   if (!hmacSecret) {
-    console.error("verify-registration: PAYMENT_HMAC_SECRET not configured");
+    console.error("verify-contribution: PAYMENT_HMAC_SECRET not configured");
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
@@ -107,8 +102,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!verifyHmacToken(hmacSecret, transactionRef, "registration", expiry, clientToken)) {
-    console.warn(`verify-registration: invalid/expired token for ref=${transactionRef}`);
+  if (!verifyHmacToken(hmacSecret, transactionRef, "contribution", expiry, clientToken)) {
+    console.warn(`verify-contribution: invalid/expired token for ref=${transactionRef}`);
     return NextResponse.json({ error: "Invalid or expired payment token." }, { status: 403 });
   }
 
@@ -134,13 +129,13 @@ export async function POST(request: NextRequest) {
 
     squadData = (await res.json()) as SquadVerifyResponse;
   } catch (err) {
-    console.error("Squad verify fetch error:", err);
+    console.error("Squad verify-contribution fetch error:", err);
     return NextResponse.json({ error: "Could not reach payment gateway" }, { status: 502 });
   }
 
   if (!squadData.success || squadData.data?.transaction_status?.toLowerCase() !== "success") {
     console.warn(
-      `Squad verify: non-success status for ref=${transactionRef}`,
+      `Squad verify-contribution: non-success status for ref=${transactionRef}`,
       squadData.data?.transaction_status
     );
     return NextResponse.json({ error: "Payment not confirmed by gateway" }, { status: 402 });
@@ -149,31 +144,21 @@ export async function POST(request: NextRequest) {
   const { email, transaction_amount: amountKobo } = squadData.data;
 
   if (!email || typeof amountKobo !== "number") {
-    console.error("Squad verify: missing email or amount in response", squadData.data);
+    console.error("Squad verify-contribution: missing email or amount in response", squadData.data);
     return NextResponse.json({ error: "Incomplete payment data from gateway" }, { status: 502 });
   }
 
-  // Squad returns transaction_amount in kobo — convert to naira
-  const amount = Math.round(amountKobo / 100);
-
-  const result = await convex.action(api.registration.processRegistrationPayment, {
+  const result = await convex.action(api.webhooks.processSquadPayment, {
     webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
-    email,
     transactionRef,
-    amount,
+    email,
+    amount: amountKobo, // processSquadPayment divides by 100 internally
+    transactionStatus: "success",
+    currency: squadData.data.currency ?? "NGN",
+    gatewayRef: squadData.data.gateway_ref ?? undefined,
   });
 
   if (result.status === "ok") {
-    if (!result.emailAlreadySent) {
-      sendWelcomeEmail({ email, name: result.name, selectedPackage: result.selectedPackage, amount, transactionRef, paidAt: result.paidAt })
-        .then(() =>
-          convex.mutation(api.registration.markWelcomeEmailSent, {
-            webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
-            userId: result.userId as never,
-          })
-        )
-        .catch((err) => console.error("sendWelcomeEmail failed:", err));
-    }
     return NextResponse.json({ status: "ok" });
   }
 
@@ -181,18 +166,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: "ok" });
   }
 
-  if (result.status === "insufficient_amount") {
-    console.error(`verify-registration: insufficient amount email=${email} paid=₦${amount}`);
-    return NextResponse.json(
-      { error: "Amount paid is less than the required registration fee." },
-      { status: 402 }
-    );
-  }
-
-  if (result.status === "not_found") {
-    console.error(`verify-registration: no user found for email=${email}`);
+  if (result.status === "user_not_found") {
+    console.error(`verify-contribution: no user found for email=${email}`);
     return NextResponse.json({ error: "Account not found for this payment." }, { status: 404 });
   }
 
-  return NextResponse.json({ error: "Unexpected error during registration." }, { status: 500 });
+  if (result.status === "unknown_package") {
+    console.error(`verify-contribution: unknown package for email=${email}`);
+    return NextResponse.json({ error: "Account package is not configured." }, { status: 422 });
+  }
+
+  if (result.status === "ignored") {
+    return NextResponse.json({ error: "Payment not confirmed by gateway" }, { status: 402 });
+  }
+
+  console.error(`verify-contribution: unexpected status=${result.status} for ref=${transactionRef}`);
+  return NextResponse.json({ error: "Unexpected error during contribution." }, { status: 500 });
 }

@@ -5,14 +5,35 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { SquadPayType } from "@/components/SquadPayButton";
 
 type Status = "verifying" | "success" | "failed";
+
+const REDIRECT_DELAY = 3;
+
+const VERIFY_ENDPOINT: Record<SquadPayType, string> = {
+  registration: "/api/squad/verify-registration",
+  contribution: "/api/squad/verify-contribution",
+};
+
+const SUCCESS_MESSAGES: Record<SquadPayType, { heading: string; body: string }> = {
+  registration: {
+    heading: "Payment Confirmed!",
+    body: "Your registration fee has been received. Your account is now active.",
+  },
+  contribution: {
+    heading: "Contribution Recorded!",
+    body: "Your daily contribution has been confirmed and your days have been credited.",
+  },
+};
 
 export default function PaymentCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<Status>("verifying");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [countdown, setCountdown] = useState(REDIRECT_DELAY);
+  const [payType, setPayType] = useState<SquadPayType>("registration");
 
   useEffect(() => {
     const transactionRef =
@@ -20,18 +41,37 @@ export default function PaymentCallbackPage() {
       searchParams.get("transactionRef") ??
       sessionStorage.getItem("squad_tx_ref");
 
+    const token = sessionStorage.getItem("squad_tx_token");
+    const expiryRaw = sessionStorage.getItem("squad_tx_expiry");
+    const txType = (sessionStorage.getItem("squad_tx_type") ?? "registration") as SquadPayType;
+
+    setPayType(txType);
+
     if (!transactionRef) {
       setErrorMessage("No transaction reference found. Please contact support.");
       setStatus("failed");
       return;
     }
 
-    sessionStorage.removeItem("squad_tx_ref");
+    if (!token || !expiryRaw) {
+      setErrorMessage("Payment session expired or invalid. Please try again.");
+      setStatus("failed");
+      return;
+    }
 
-    fetch("/api/squad/verify-registration", {
+    const expiry = Number(expiryRaw);
+
+    sessionStorage.removeItem("squad_tx_ref");
+    sessionStorage.removeItem("squad_tx_token");
+    sessionStorage.removeItem("squad_tx_expiry");
+    sessionStorage.removeItem("squad_tx_type");
+
+    const endpoint = VERIFY_ENDPOINT[txType] ?? VERIFY_ENDPOINT.registration;
+
+    fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transactionRef }),
+      body: JSON.stringify({ transactionRef, token, expiry }),
     })
       .then(async (res) => {
         const data = await res.json();
@@ -47,6 +87,27 @@ export default function PaymentCallbackPage() {
         setStatus("failed");
       });
   }, [searchParams]);
+
+  useEffect(() => {
+    if (status !== "success") return;
+
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          router.replace("/dashboard");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [status, router]);
+
+  const successMsg = SUCCESS_MESSAGES[payType];
+  const retryPath =
+    payType === "contribution" ? "/dashboard" : "/payment-instructions";
 
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center px-4">
@@ -68,15 +129,16 @@ export default function PaymentCallbackPage() {
         {status === "success" && (
           <>
             <CheckCircle2 className="h-12 w-12 text-emerald-600 mx-auto" />
-            <h1 className="text-xl font-bold">Payment Confirmed!</h1>
-            <p className="text-sm text-muted-foreground">
-              Your registration fee has been received. Your account is now active.
+            <h1 className="text-xl font-bold">{successMsg.heading}</h1>
+            <p className="text-sm text-muted-foreground">{successMsg.body}</p>
+            <p className="text-xs text-muted-foreground">
+              Redirecting to your dashboard in {countdown}s…
             </p>
             <Button
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={() => router.replace("/dashboard")}
             >
-              Go to Dashboard
+              Go to Dashboard Now
             </Button>
           </>
         )}
@@ -90,7 +152,7 @@ export default function PaymentCallbackPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => router.replace("/payment-instructions")}
+                onClick={() => router.replace(retryPath)}
               >
                 Try Again
               </Button>

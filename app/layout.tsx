@@ -236,11 +236,6 @@ const jsonLd = {
         "@type": "PostalAddress",
         addressCountry: "NG",
       },
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: "4.9",
-        reviewCount: "500",
-      },
     },
   ],
 };

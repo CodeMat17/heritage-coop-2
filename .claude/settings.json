@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx react-email *)",
+      "Bash(kill %1)",
+      "Bash(node -e \"process.stdout.write\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")"
+    ]
+  }
+}

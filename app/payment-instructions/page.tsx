@@ -78,7 +78,6 @@ export default function PaymentInstructionsPage() {
               email={email}
               amount={fee}
               label={`Pay ${fmt(fee)} Now`}
-              onPaymentSuccess={() => router.replace("/dashboard")}
             />
           ) : null}
 

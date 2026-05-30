@@ -82,9 +82,10 @@ export const processSquadPayment = action({
       return { status: "unknown_package" };
     }
     const daysCount = Math.max(1, Math.floor(amountNaira / dailyRate));
-    const alreadyCovered = await ctx.runQuery(internal.webhooks.getCoveredDatesByUserId, {
+    const coveredArr = await ctx.runQuery(internal.webhooks.getCoveredDatesByUserId, {
       userId: user._id,
     });
+    const alreadyCovered = new Set(coveredArr);
     const coveredDates = computeNextUnpaidDates(alreadyCovered, daysCount);
 
     await ctx.runMutation(internal.webhooks.insertContribution, {
@@ -145,7 +146,7 @@ export const getCoveredDatesByUserId = internalQuery({
     for (const c of contributions) {
       for (const d of c.coveredDates) allDates.add(d);
     }
-    return allDates;
+    return [...allDates];
   },
 });
 

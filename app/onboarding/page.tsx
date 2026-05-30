@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
 import { NIGERIA_STATES, NIGERIA_STATE_TO_LGAS } from "@/lib/nigeria";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useQuery } from "convex/react";
 import { Building2, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -123,7 +123,7 @@ export default function OnboardingPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const router = useRouter();
   const convexUser = useQuery(api.users.current);
-  const upsertUser = useMutation(api.users.upsertUserData);
+  const upsertUser = useAction(api.users.upsertUserData);
 
   React.useEffect(() => {
     if (isLoading) return;

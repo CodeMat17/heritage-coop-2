@@ -1,6 +1,8 @@
-import { internalMutation, mutation, query, QueryCtx } from "./_generated/server";
+import { action, internalMutation, mutation, query, QueryCtx } from "./_generated/server";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
+import { internal } from "./_generated/api";
+import { encryptBvn } from "./lib/bvnCrypto";
 
 export const current = query({
   args: {},
@@ -64,76 +66,99 @@ export const deleteFromClerk = internalMutation({
   },
 });
 
-export const upsertUserData = mutation({
-  args: {
-    fullName: v.string(),
-    gender: v.string(),
-    nickName: v.string(),
-    motherMaidenName: v.string(),
-    dateOfBirth: v.string(),
-    placeOfBirth: v.string(),
-    nationality: v.string(),
-    stateOfOrigin: v.string(),
-    lga: v.string(),
-    homeTown: v.string(),
-    maritalStatus: v.string(),
-    mobilePhoneNumber: v.string(),
-    otherPhoneNumber: v.optional(v.string()),
-    residentialAddress: v.string(),
-    permanentAddress: v.string(),
-    taxIdentificationNumber: v.optional(v.string()),
-    typeOfTrade: v.string(),
-    yearsInTrade: v.number(),
-    otherTradeOrSkill: v.optional(v.string()),
-    meansOfIdentification: v.string(),
-    meansOfIdentificationStartDate: v.string(),
-    meansOfIdentificationExpiryDate: v.string(),
-    educationalBackground: v.string(),
-    accountName: v.string(),
-    accountNumber: v.string(),
-    bankName: v.string(),
-    bvn: v.string(),
-    nokSurname: v.string(),
-    nokFirstName: v.string(),
-    nokOtherName: v.string(),
-    nokTitle: v.string(),
-    nokDateOfBirth: v.string(),
-    nokGender: v.string(),
-    nokRelationship: v.string(),
-    nokPhoneNumber: v.string(),
-    nokEmail: v.string(),
-    nokHouseAddress: v.string(),
-  },
-  async handler(ctx, args) {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+const userDataFields = {
+  fullName: v.string(),
+  gender: v.string(),
+  nickName: v.string(),
+  motherMaidenName: v.string(),
+  dateOfBirth: v.string(),
+  placeOfBirth: v.string(),
+  nationality: v.string(),
+  stateOfOrigin: v.string(),
+  lga: v.string(),
+  homeTown: v.string(),
+  maritalStatus: v.string(),
+  mobilePhoneNumber: v.string(),
+  otherPhoneNumber: v.optional(v.string()),
+  residentialAddress: v.string(),
+  permanentAddress: v.string(),
+  taxIdentificationNumber: v.optional(v.string()),
+  typeOfTrade: v.string(),
+  yearsInTrade: v.number(),
+  otherTradeOrSkill: v.optional(v.string()),
+  meansOfIdentification: v.string(),
+  meansOfIdentificationStartDate: v.string(),
+  meansOfIdentificationExpiryDate: v.string(),
+  educationalBackground: v.string(),
+  accountName: v.string(),
+  accountNumber: v.string(),
+  bankName: v.string(),
+  // bvn is stored encrypted; the action encrypts it before calling the mutation
+  bvn: v.string(),
+  nokSurname: v.string(),
+  nokFirstName: v.string(),
+  nokOtherName: v.string(),
+  nokTitle: v.string(),
+  nokDateOfBirth: v.string(),
+  nokGender: v.string(),
+  nokRelationship: v.string(),
+  nokPhoneNumber: v.string(),
+  nokEmail: v.string(),
+  nokHouseAddress: v.string(),
+};
 
-    let user = await userByExternalId(ctx, identity.subject);
+// Internal mutation — receives the BVN already encrypted.
+export const upsertUserDataInternal = internalMutation({
+  args: { externalId: v.string(), ...userDataFields },
+  async handler(ctx, args) {
+    const { externalId, ...data } = args;
+
+    let user = await userByExternalId(ctx, externalId);
     if (!user) {
       const userId = await ctx.db.insert("users", {
-        externalId: identity.subject,
-        name: identity.name ?? args.fullName,
-        email: identity.email ?? "",
+        externalId,
+        name: data.fullName,
+        email: "",
         isOnboarded: false,
       });
       user = await ctx.db.get(userId);
     }
     if (!user) throw new Error("User not found");
 
-    await ctx.db.patch(user._id, { isOnboarded: true, name: args.fullName });
+    await ctx.db.patch(user._id, { isOnboarded: true, name: data.fullName });
 
     const existing = await ctx.db
       .query("userData")
       .withIndex("byUserId", (q) => q.eq("userId", user._id))
       .unique();
 
-    const payload = { userId: user._id, ...args };
-
+    const payload = { userId: user._id, ...data };
     if (existing) {
       await ctx.db.patch(existing._id, payload);
     } else {
       await ctx.db.insert("userData", payload);
     }
+  },
+});
+
+// Public action — encrypts the BVN before persisting, then delegates to the
+// internal mutation. Actions allow non-deterministic ops (random IV generation).
+export const upsertUserData = action({
+  args: userDataFields,
+  async handler(ctx, args) {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const encKey = process.env.BVN_ENCRYPTION_KEY;
+    if (!encKey) throw new Error("BVN_ENCRYPTION_KEY is not configured");
+
+    const encryptedBvn = await encryptBvn(args.bvn, encKey);
+
+    await ctx.runMutation(internal.users.upsertUserDataInternal, {
+      externalId: identity.subject,
+      ...args,
+      bvn: encryptedBvn,
+    });
   },
 });
 

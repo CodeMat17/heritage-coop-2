@@ -14,7 +14,6 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Copy,
   TrendingUp,
   Wallet,
   AlertCircle,
@@ -23,7 +22,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
+import SquadPayButton from "@/components/SquadPayButton";
 
 const PACKAGES: Record<string, { name: string; daily: number; loan: number }> = {
   bronze:  { name: "Bronze",  daily: 500,    loan: 100_000 },
@@ -34,9 +33,6 @@ const PACKAGES: Record<string, { name: string; daily: number; loan: number }> = 
 };
 
 const DAY_OPTIONS = [1, 2, 3, 5, 7, 14, 30];
-const SQUAD_ACCOUNT_NAME = process.env.NEXT_PUBLIC_SQUAD_ACCOUNT_NAME ?? "HERITAGE PORT-HARCOURT MULTI-PURPOSE CO-OPERATIVE SOCIETY LIMITED";
-const SQUAD_ACCOUNT_NUMBER = process.env.NEXT_PUBLIC_SQUAD_ACCOUNT_NUMBER ?? "0074256241";
-const SQUAD_BANK_NAME = process.env.NEXT_PUBLIC_SQUAD_BANK_NAME ?? "STANBIC IBTC BANK PLC";
 
 function fmt(n: number) {
   return `₦${n.toLocaleString("en-NG")}`;
@@ -53,12 +49,12 @@ function getNextUnpaidDates(contributedDates: string[], daysCount: number): stri
   const contributed = new Set(contributedDates);
   const dates: string[] = [];
   const cursor = new Date();
-  cursor.setHours(0, 0, 0, 0);
+  cursor.setUTCHours(0, 0, 0, 0);
   let i = 0;
   while (dates.length < daysCount) {
     const iso = cursor.toISOString().split("T")[0];
     if (!contributed.has(iso)) dates.push(iso);
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
     if (++i > 365) break;
   }
   return dates;
@@ -167,10 +163,6 @@ export default function DashboardPage() {
   const firstName = convexUser?.name?.split(" ")[0] || "Member";
 
   const isAdmin = clerkUser?.publicMetadata?.role === "admin";
-
-  function copyText(text: string, label: string) {
-    navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied`));
-  }
 
   if (!convexUser || !pkg) {
     return (
@@ -358,11 +350,9 @@ export default function DashboardPage() {
 
           <Separator className='mb-5' />
 
-          {/* Total */}
+          {/* Total + pay button */}
           <div className='flex items-center justify-between mb-5'>
-            <div>
-              <p className='text-xs text-muted-foreground'>Transfer this amount</p>
-            </div>
+            <p className='text-xs text-muted-foreground'>Total to pay</p>
             <p className='text-2xl font-bold text-emerald-600'>
               {fmt(amountToPay)}
             </p>
@@ -382,32 +372,16 @@ export default function DashboardPage() {
             </p>
           )}
 
-          {/* Bank transfer details */}
-          <div className='space-y-2'>
-            {[
-              { label: "Bank", value: SQUAD_BANK_NAME },
-              { label: "Account number", value: SQUAD_ACCOUNT_NUMBER },
-              { label: "Account name", value: SQUAD_ACCOUNT_NAME },
-            ].map(({ label, value }) => (
-              <div
-                key={label}
-                className='flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3'>
-                <div>
-                  <p className='text-xs text-muted-foreground'>{label}</p>
-                  <p className='text-sm font-semibold'>{value}</p>
-                </div>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  className='h-8 w-8 shrink-0'
-                  onClick={() => copyText(value, label)}>
-                  <Copy className='h-3.5 w-3.5' />
-                </Button>
-              </div>
-            ))}
-          </div>
+          {convexUser?.email && amountToPay > 0 && (
+            <SquadPayButton
+              type="contribution"
+              email={convexUser.email}
+              amount={amountToPay}
+              label={`Pay ${fmt(amountToPay)} for ${daysCount} ${daysCount === 1 ? "day" : "days"}`}
+            />
+          )}
           <p className='text-xs text-muted-foreground mt-3'>
-            Transfer the exact amount above. Your contribution days will be updated automatically once payment is confirmed.
+            Your contribution days will be updated automatically once payment is confirmed.
           </p>
         </motion.div>
 
