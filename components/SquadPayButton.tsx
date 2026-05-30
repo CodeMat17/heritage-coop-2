@@ -21,6 +21,7 @@ const SQUAD_SDK_URL =
     : "https://sandbox.squadco.com/squad.min.js";
 const CALLBACK_PATH = "/payment-callback";
 const LOAD_TIMEOUT_MS = 30_000;
+const SDK_LOAD_TIMEOUT_MS = 15_000;
 
 function loadSquadSdk(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -28,18 +29,37 @@ function loadSquadSdk(): Promise<void> {
       resolve();
       return;
     }
-    if (document.getElementById("squad-sdk")) {
-      // Script tag exists but squad not ready yet — wait for it
-      const existing = document.getElementById("squad-sdk") as HTMLScriptElement;
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Squad SDK failed to load")));
-      return;
+
+    const existing = document.getElementById("squad-sdk") as HTMLScriptElement | null;
+    if (existing) {
+      if (existing.dataset.failed) {
+        // Previous load errored — remove the dead tag and retry fresh.
+        existing.remove();
+      } else {
+        // Script is still in-flight; piggyback on it.
+        const timer = setTimeout(
+          () => reject(new Error("Squad SDK load timed out")),
+          SDK_LOAD_TIMEOUT_MS
+        );
+        existing.addEventListener("load", () => { clearTimeout(timer); resolve(); });
+        existing.addEventListener("error", () => { clearTimeout(timer); reject(new Error("Squad SDK failed to load")); });
+        return;
+      }
     }
+
     const script = document.createElement("script");
     script.id = "squad-sdk";
     script.src = SQUAD_SDK_URL;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Squad SDK failed to load"));
+    const timer = setTimeout(() => {
+      script.remove();
+      reject(new Error("Squad SDK load timed out"));
+    }, SDK_LOAD_TIMEOUT_MS);
+    script.onload = () => { clearTimeout(timer); resolve(); };
+    script.onerror = () => {
+      clearTimeout(timer);
+      script.dataset.failed = "1";
+      reject(new Error("Squad SDK failed to load"));
+    };
     document.head.appendChild(script);
   });
 }
