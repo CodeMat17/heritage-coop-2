@@ -15,11 +15,8 @@ interface SquadPayButtonProps {
   type?: SquadPayType;
 }
 
-const SQUAD_ENV = process.env.NEXT_PUBLIC_SQUAD_ENV ?? "production";
-const SQUAD_SDK_URL =
-  SQUAD_ENV === "sandbox"
-    ? "https://sandbox.squadco.com/widget/squad.min.js"
-    : "https://checkout.squadco.com/widget/squad.min.js";
+// Served from /public so it loads from our own domain — avoids CDN cross-origin blocks.
+const SQUAD_SDK_URL = "/squad.min.js";
 
 const MODAL_TIMEOUT_MS = 30_000;
 
@@ -38,7 +35,7 @@ function loadSquadSdk(): Promise<void> {
           resolve();
         } else if (Date.now() - start > 10_000) {
           clearInterval(poll);
-          reject(new Error("Squad SDK load timeout"));
+          reject(new Error(`Squad SDK timeout: window.squad still undefined after 10s (src=${SQUAD_SDK_URL})`));
         }
       }, 100);
     });
@@ -49,8 +46,18 @@ function loadSquadSdk(): Promise<void> {
     s.id = "squad-sdk";
     s.src = SQUAD_SDK_URL;
     s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load Squad SDK"));
+    s.onload = () => {
+      if (typeof window.squad !== "undefined") {
+        resolve();
+      } else {
+        // Script executed but didn't expose window.squad — likely a runtime error inside the SDK.
+        reject(new Error(`Squad SDK loaded but window.squad is undefined (src=${SQUAD_SDK_URL})`));
+      }
+    };
+    s.onerror = (event) => {
+      console.error("[SquadPayButton] SDK script failed to load:", SQUAD_SDK_URL, event);
+      reject(new Error(`Failed to load Squad SDK from ${SQUAD_SDK_URL}`));
+    };
     document.head.appendChild(s);
   });
 }
@@ -85,7 +92,8 @@ export default function SquadPayButton({
     // Load Squad SDK on demand — no eager preload so the button is never stuck.
     try {
       await loadSquadSdk();
-    } catch {
+    } catch (sdkErr) {
+      console.error("[SquadPayButton] loadSquadSdk failed:", sdkErr);
       toast.error("Could not load payment gateway. Please check your connection and try again.");
       setLoading(false);
       return;
