@@ -15,7 +15,11 @@ interface SquadPayButtonProps {
   type?: SquadPayType;
 }
 
-const SQUAD_SDK_URL = "/api/squad/sdk";
+const SQUAD_ENV = process.env.NEXT_PUBLIC_SQUAD_ENV ?? "production";
+const SQUAD_SDK_URL =
+  SQUAD_ENV === "sandbox"
+    ? "https://sandbox.squadco.com/widget/squad.min.js"
+    : "https://checkout.squadco.com/widget/squad.min.js";
 const CALLBACK_PATH = "/payment-callback";
 const LOAD_TIMEOUT_MS = 30_000;
 const SDK_LOAD_TIMEOUT_MS = 15_000;
