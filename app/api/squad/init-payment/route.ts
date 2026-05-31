@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         amount: Math.round(amount * 100), // naira → kobo
         email,
-        currency: "NGN",
+        currency_code: "NGN",
         initiate_type: "inline",
         CallBack_URL: `${baseUrl}/payment-callback`,
       }),
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     if (!squadRes.ok) {
       const errorText = await squadRes.text().catch(() => "");
-      console.error(`Squad initiate HTTP ${squadRes.status}: ${errorText}`);
+      console.error(`Squad initiate HTTP ${squadRes.status} (SQUAD_ENV=${process.env.SQUAD_ENV}, base=${SQUAD_BASE_URL}): ${errorText}`);
       return NextResponse.json(
         { error: "Could not initialise payment with gateway" },
         { status: 502 }
