@@ -15,27 +15,37 @@ interface SquadPayButtonProps {
   type?: SquadPayType;
 }
 
-// Served from /public so it loads from our own domain — avoids CDN cross-origin blocks.
-const SQUAD_SDK_URL = "/squad.min.js";
+const SQUAD_SDK_URL = "https://checkout.squadco.com/widget/squad.min.js";
 
 const MODAL_TIMEOUT_MS = 30_000;
 
-/** Injects the Squad SDK script once and resolves when it's ready. */
+/** Normalises Squad's global: the SDK may export as window.Squad (capital S). */
+function resolveSquadGlobal(): boolean {
+  if (typeof window.squad !== "undefined") return true;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const g = window as any;
+  if (typeof g.Squad !== "undefined") {
+    window.squad = g.Squad;
+    return true;
+  }
+  return false;
+}
+
+/** Injects the Squad SDK script once and resolves when window.squad is available. */
 function loadSquadSdk(): Promise<void> {
-  if (typeof window.squad !== "undefined") return Promise.resolve();
+  if (resolveSquadGlobal()) return Promise.resolve();
 
   const existing = document.getElementById("squad-sdk") as HTMLScriptElement | null;
   if (existing) {
-    // Script tag already injected — poll until the constructor appears.
     return new Promise((resolve, reject) => {
       const start = Date.now();
       const poll = setInterval(() => {
-        if (typeof window.squad !== "undefined") {
+        if (resolveSquadGlobal()) {
           clearInterval(poll);
           resolve();
         } else if (Date.now() - start > 10_000) {
           clearInterval(poll);
-          reject(new Error(`Squad SDK timeout: window.squad still undefined after 10s (src=${SQUAD_SDK_URL})`));
+          reject(new Error("Squad SDK timeout: window.squad still undefined after 10s"));
         }
       }, 100);
     });
@@ -47,15 +57,22 @@ function loadSquadSdk(): Promise<void> {
     s.src = SQUAD_SDK_URL;
     s.async = true;
     s.onload = () => {
-      if (typeof window.squad !== "undefined") {
+      if (resolveSquadGlobal()) {
         resolve();
-      } else {
-        // Script executed but didn't expose window.squad — likely a runtime error inside the SDK.
-        reject(new Error(`Squad SDK loaded but window.squad is undefined (src=${SQUAD_SDK_URL})`));
+        return;
       }
+      const start = Date.now();
+      const poll = setInterval(() => {
+        if (resolveSquadGlobal()) {
+          clearInterval(poll);
+          resolve();
+        } else if (Date.now() - start > 10_000) {
+          clearInterval(poll);
+          reject(new Error("Squad SDK loaded but window.squad/Squad undefined after 10s"));
+        }
+      }, 50);
     };
-    s.onerror = (event) => {
-      console.error("[SquadPayButton] SDK script failed to load:", SQUAD_SDK_URL, event);
+    s.onerror = () => {
       reject(new Error(`Failed to load Squad SDK from ${SQUAD_SDK_URL}`));
     };
     document.head.appendChild(s);
@@ -89,7 +106,6 @@ export default function SquadPayButton({
 
     setLoading(true);
 
-    // Load Squad SDK on demand — no eager preload so the button is never stuck.
     try {
       await loadSquadSdk();
     } catch (sdkErr) {
@@ -99,8 +115,8 @@ export default function SquadPayButton({
       return;
     }
 
-    // Server calls Squad's initiate API and returns Squad's canonical
-    // transaction_ref plus an HMAC token for the verify step.
+    // Obtain a server-issued transaction_ref and HMAC token.
+    // The server generates the ref locally — no Squad API pre-flight needed.
     let transactionRef: string;
     let token: string;
     let expiry: number;
@@ -112,7 +128,6 @@ export default function SquadPayButton({
       });
       const initData = await initRes.json().catch(() => ({}));
       if (!initRes.ok) {
-        console.error("[SquadPayButton] init-payment failed:", initRes.status, initData);
         throw new Error(initData?.error ?? `init-payment HTTP ${initRes.status}`);
       }
       transactionRef = initData.transaction_ref;
@@ -126,12 +141,13 @@ export default function SquadPayButton({
       return;
     }
 
+    // Persist the HMAC token and ref so the callback page can verify the payment.
     sessionStorage.setItem("squad_tx_ref", transactionRef);
     sessionStorage.setItem("squad_tx_token", token);
     sessionStorage.setItem("squad_tx_expiry", String(expiry));
     sessionStorage.setItem("squad_tx_type", type);
 
-    // Safety valve: if the modal never calls onLoad/onClose, unlock the button.
+    // Safety valve: unlock the button if the modal never fires onLoad/onClose.
     modalTimeout.current = setTimeout(() => setLoading(false), MODAL_TIMEOUT_MS);
 
     const callbackUrl = `${window.location.origin}/payment-callback`;
@@ -143,7 +159,6 @@ export default function SquadPayButton({
         amount: amount * 100,
         currency_code: "NGN",
         transaction_ref: transactionRef,
-        CallBack_URL: callbackUrl,
         onLoad: () => {
           clearModalTimeout();
           setLoading(false);
@@ -153,8 +168,9 @@ export default function SquadPayButton({
           setLoading(false);
         },
         onSuccess: (data) => {
-          const ref = data?.transaction_ref ?? transactionRef;
-          sessionStorage.setItem("squad_tx_ref", ref);
+          clearModalTimeout();
+          const finalRef = data?.transaction_ref ?? transactionRef;
+          sessionStorage.setItem("squad_tx_ref", finalRef);
           window.location.href = callbackUrl;
         },
       });
@@ -163,7 +179,7 @@ export default function SquadPayButton({
       squadInstance.open();
     } catch (err) {
       clearModalTimeout();
-      console.error("Squad modal error:", err);
+      console.error("[SquadPayButton] modal error:", err);
       sessionStorage.removeItem("squad_tx_ref");
       sessionStorage.removeItem("squad_tx_token");
       sessionStorage.removeItem("squad_tx_expiry");
