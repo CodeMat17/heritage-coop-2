@@ -125,7 +125,7 @@ export default function SquadPayButton({
       const initRes = await fetch("/api/squad/init-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, amount, payType: type, callbackUrl }),
+        body: JSON.stringify({ email, amount, payType: type }),
       });
       const initData = await initRes.json().catch(() => ({}));
       if (!initRes.ok) {
