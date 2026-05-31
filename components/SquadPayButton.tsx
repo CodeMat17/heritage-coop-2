@@ -31,6 +31,20 @@ export default function SquadPayButton({
 }: SquadPayButtonProps) {
   const [loading, setLoading] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [scriptError, setScriptError] = useState(false);
+
+  function retryLoadSdk() {
+    if (typeof window === "undefined") return;
+    if (document.getElementById("squad-sdk-fallback")) return;
+    const s = document.createElement("script");
+    s.id = "squad-sdk-fallback";
+    s.src = SQUAD_SDK_URL;
+    s.async = true;
+    s.onload = () => setSdkReady(true);
+    s.onerror = () =>
+      toast.error("Could not load payment gateway. Please refresh and try again.");
+    document.head.appendChild(s);
+  }
 
   async function handlePayment() {
     if (loading) return;
@@ -120,9 +134,10 @@ export default function SquadPayButton({
         src={SQUAD_SDK_URL}
         strategy="afterInteractive"
         onLoad={() => setSdkReady(true)}
-        onError={() =>
-          toast.error("Could not load payment gateway. Please refresh and try again.")
-        }
+        onError={() => {
+          setScriptError(true);
+          retryLoadSdk();
+        }}
       />
       <Button
         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 disabled:opacity-60"
@@ -137,7 +152,7 @@ export default function SquadPayButton({
         ) : !sdkReady ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading…
+            {scriptError ? "Retrying…" : "Loading…"}
           </>
         ) : (
           <>
