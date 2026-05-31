@@ -4,7 +4,13 @@
       "Bash(npx react-email *)",
       "Bash(kill %1)",
       "Bash(node -e \"process.stdout.write\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")",
-      "Bash(curl -L \"https://checkout.squadco.com/widget/squad.min.js\" --max-time 15 -o NUL -w \"HTTP %{http_code} | size: %{size_download} bytes\\\\n\")"
+      "Bash(curl -L \"https://checkout.squadco.com/widget/squad.min.js\" --max-time 15 -o NUL -w \"HTTP %{http_code} | size: %{size_download} bytes\\\\n\")",
+      "Bash(curl -Is \"https://sandbox-checkout.squadco.com/widget/squad.min.js\" --max-time 10)",
+      "Bash(curl -Is \"https://sandbox.squadco.com/widget/squad.min.js\" --max-time 10)",
+      "Bash(curl -Is \"https://checkout.squadco.com/sandbox/squad.min.js\" --max-time 10)",
+      "Bash(curl -Is \"https://sandbox-lib.squadco.com/squad-sandbox.min.js\" --max-time 10)",
+      "Bash(curl -Is \"https://squadco.com/widget/squad.min.js\" --max-time 10)",
+      "Bash(curl -Is \"https://lib.squadco.com/squad.min.js\" --max-time 10)"
     ]
   }
 }
