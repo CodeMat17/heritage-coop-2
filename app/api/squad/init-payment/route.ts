@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       const errorText = await squadRes.text().catch(() => "");
       console.error(`Squad initiate HTTP ${squadRes.status} (SQUAD_ENV=${process.env.SQUAD_ENV}, base=${SQUAD_BASE_URL}): ${errorText}`);
       return NextResponse.json(
-        { error: "Could not initialise payment with gateway" },
+        { error: "Could not initialise payment with gateway", _debug: { squadStatus: squadRes.status, squadBody: errorText, env: process.env.SQUAD_ENV, base: SQUAD_BASE_URL } },
         { status: 502 }
       );
     }
