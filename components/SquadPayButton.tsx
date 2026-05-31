@@ -15,7 +15,7 @@ interface SquadPayButtonProps {
   type?: SquadPayType;
 }
 
-const SQUAD_SDK_URL = "https://checkout.squadco.com/widget/squad.min.js";
+const SQUAD_SDK_URL = "/squad.min.js";
 
 const MODAL_TIMEOUT_MS = 30_000;
 
@@ -73,6 +73,7 @@ function loadSquadSdk(): Promise<void> {
       }, 50);
     };
     s.onerror = () => {
+      document.getElementById("squad-sdk")?.remove();
       reject(new Error(`Failed to load Squad SDK from ${SQUAD_SDK_URL}`));
     };
     document.head.appendChild(s);
