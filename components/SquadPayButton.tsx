@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Script from "next/script";
 import { CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -20,56 +21,7 @@ const SQUAD_SDK_URL =
   SQUAD_ENV === "sandbox"
     ? "https://sandbox.squadco.com/widget/squad.min.js"
     : "https://checkout.squadco.com/widget/squad.min.js";
-const CALLBACK_PATH = "/payment-callback";
 const LOAD_TIMEOUT_MS = 30_000;
-const SDK_LOAD_TIMEOUT_MS = 15_000;
-
-function loadSquadSdk(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    console.log("[Squad] loadSquadSdk called, window.squad=", typeof window.squad);
-    if (typeof window.squad !== "undefined") {
-      console.log("[Squad] already loaded, resolving");
-      resolve();
-      return;
-    }
-
-    const existing = document.getElementById("squad-sdk") as HTMLScriptElement | null;
-    console.log("[Squad] existing script tag=", existing, "failed=", existing?.dataset.failed);
-    if (existing) {
-      if (existing.dataset.failed) {
-        existing.remove();
-      } else {
-        console.log("[Squad] piggybacking on in-flight script");
-        const timer = setTimeout(
-          () => { console.error("[Squad] piggyback timed out"); reject(new Error("Squad SDK load timed out")); },
-          SDK_LOAD_TIMEOUT_MS
-        );
-        existing.addEventListener("load", () => { clearTimeout(timer); console.log("[Squad] piggyback resolved"); resolve(); });
-        existing.addEventListener("error", () => { clearTimeout(timer); console.error("[Squad] piggyback error"); reject(new Error("Squad SDK failed to load")); });
-        return;
-      }
-    }
-
-    console.log("[Squad] injecting script tag, src=", SQUAD_SDK_URL);
-    const script = document.createElement("script");
-    script.id = "squad-sdk";
-    script.src = SQUAD_SDK_URL;
-    const timer = setTimeout(() => {
-      console.error("[Squad] script load timed out");
-      script.remove();
-      reject(new Error("Squad SDK load timed out"));
-    }, SDK_LOAD_TIMEOUT_MS);
-    script.onload = () => { clearTimeout(timer); console.log("[Squad] script onload fired, window.squad=", typeof window.squad); resolve(); };
-    script.onerror = (e) => {
-      clearTimeout(timer);
-      script.dataset.failed = "1";
-      console.error("[Squad] script onerror:", e, script.src);
-      reject(new Error("Squad SDK failed to load"));
-    };
-    document.head.appendChild(script);
-    console.log("[Squad] script tag appended to head");
-  });
-}
 
 export default function SquadPayButton({
   email,
@@ -78,6 +30,7 @@ export default function SquadPayButton({
   type = "registration",
 }: SquadPayButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [sdkReady, setSdkReady] = useState(false);
 
   async function handlePayment() {
     if (loading) return;
@@ -88,56 +41,41 @@ export default function SquadPayButton({
       return;
     }
 
+    if (!sdkReady || typeof window.squad === "undefined") {
+      toast.error("Payment gateway is still loading. Please wait a moment and try again.");
+      return;
+    }
+
     setLoading(true);
 
-    try {
-      await loadSquadSdk();
-    } catch (err) {
-      console.error("[Squad] loadSquadSdk rejected:", err);
-      toast.error("Could not load payment gateway. Please check your connection and try again.");
-      setLoading(false);
-      return;
-    }
-
-    if (typeof window.squad === "undefined") {
-      toast.error("Payment gateway unavailable. Please refresh and try again.");
-      setLoading(false);
-      return;
-    }
-
-    const transactionRef = `HC-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    const callbackUrl = `${window.location.origin}${CALLBACK_PATH}`;
-
-    // Obtain a server-signed token bound to this transactionRef, payType, and a
-    // 15-minute expiry. The verify endpoint rejects any ref that arrives without
-    // a matching unexpired token for the correct payType.
+    // Server calls Squad's initiate API, registers CallBack_URL, and returns
+    // Squad's canonical transaction_ref plus an HMAC token for the verify step.
+    let transactionRef: string;
     let token: string;
     let expiry: number;
     try {
       const initRes = await fetch("/api/squad/init-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transactionRef, payType: type }),
+        body: JSON.stringify({ email, amount, payType: type }),
       });
       if (!initRes.ok) throw new Error("init-payment failed");
       const initData = await initRes.json();
+      transactionRef = initData.transaction_ref;
       token = initData.token;
       expiry = initData.expiry;
-      if (!token || !expiry) throw new Error("Incomplete token data returned");
+      if (!transactionRef || !token || !expiry) throw new Error("Incomplete data from init-payment");
     } catch {
       toast.error("Could not initialise payment. Please try again.");
       setLoading(false);
       return;
     }
 
-    // Store ref, token, expiry, and type before opening so they survive
-    // navigation to the callback page even if the browser doesn't fire onSuccess.
     sessionStorage.setItem("squad_tx_ref", transactionRef);
     sessionStorage.setItem("squad_tx_token", token);
     sessionStorage.setItem("squad_tx_expiry", String(expiry));
     sessionStorage.setItem("squad_tx_type", type);
 
-    // Fallback: reset loading if onLoad never fires (e.g. SDK hang / network issue).
     const loadFallback = setTimeout(() => setLoading(false), LOAD_TIMEOUT_MS);
 
     try {
@@ -147,7 +85,6 @@ export default function SquadPayButton({
         amount: amount * 100,
         currency_code: "NGN",
         transaction_ref: transactionRef,
-        CallBack_URL: callbackUrl,
         onLoad: () => {
           clearTimeout(loadFallback);
           setLoading(false);
@@ -157,7 +94,6 @@ export default function SquadPayButton({
           setLoading(false);
         },
         onSuccess: (data) => {
-          // Squad may normalise the ref; keep sessionStorage in sync.
           const ref = data?.transaction_ref ?? transactionRef;
           sessionStorage.setItem("squad_tx_ref", ref);
         },
@@ -178,22 +114,38 @@ export default function SquadPayButton({
   }
 
   return (
-    <Button
-      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 disabled:opacity-60"
-      onClick={handlePayment}
-      disabled={loading}
-    >
-      {loading ? (
-        <>
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Opening payment…
-        </>
-      ) : (
-        <>
-          <CreditCard className="h-4 w-4" />
-          {label}
-        </>
-      )}
-    </Button>
+    <>
+      <Script
+        id="squad-sdk"
+        src={SQUAD_SDK_URL}
+        strategy="afterInteractive"
+        onLoad={() => setSdkReady(true)}
+        onError={() =>
+          toast.error("Could not load payment gateway. Please refresh and try again.")
+        }
+      />
+      <Button
+        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 disabled:opacity-60"
+        onClick={handlePayment}
+        disabled={loading || !sdkReady}
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Opening payment…
+          </>
+        ) : !sdkReady ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading…
+          </>
+        ) : (
+          <>
+            <CreditCard className="h-4 w-4" />
+            {label}
+          </>
+        )}
+      </Button>
+    </>
   );
 }

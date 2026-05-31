@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     if (!transactionRef || typeof transactionRef !== "string") {
       return NextResponse.json({ error: "transactionRef is required" }, { status: 400 });
     }
-    if (!/^[A-Za-z0-9_-]{4,128}$/.test(transactionRef)) {
+    if (!/^[\w\-.]{4,200}$/.test(transactionRef)) {
       return NextResponse.json({ error: "Invalid transactionRef format" }, { status: 400 });
     }
     if (!clientToken || typeof clientToken !== "string") {
