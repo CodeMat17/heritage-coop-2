@@ -116,8 +116,8 @@ export default function SquadPayButton({
       return;
     }
 
-    // Obtain a server-issued transaction_ref and HMAC token.
-    // The server generates the ref locally — no Squad API pre-flight needed.
+    const callbackUrl = `${window.location.origin}/payment-callback`;
+
     let transactionRef: string;
     let token: string;
     let expiry: number;
@@ -125,7 +125,7 @@ export default function SquadPayButton({
       const initRes = await fetch("/api/squad/init-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, amount, payType: type }),
+        body: JSON.stringify({ email, amount, payType: type, callbackUrl }),
       });
       const initData = await initRes.json().catch(() => ({}));
       if (!initRes.ok) {
@@ -150,8 +150,6 @@ export default function SquadPayButton({
 
     // Safety valve: unlock the button if the modal never fires onLoad/onClose.
     modalTimeout.current = setTimeout(() => setLoading(false), MODAL_TIMEOUT_MS);
-
-    const callbackUrl = `${window.location.origin}/payment-callback`;
 
     try {
       const squadInstance = new window.squad({
