@@ -10,7 +10,8 @@
       "Bash(curl -Is \"https://checkout.squadco.com/sandbox/squad.min.js\" --max-time 10)",
       "Bash(curl -Is \"https://sandbox-lib.squadco.com/squad-sandbox.min.js\" --max-time 10)",
       "Bash(curl -Is \"https://squadco.com/widget/squad.min.js\" --max-time 10)",
-      "Bash(curl -Is \"https://lib.squadco.com/squad.min.js\" --max-time 10)"
+      "Bash(curl -Is \"https://lib.squadco.com/squad.min.js\" --max-time 10)",
+      "WebFetch(domain:squadinc.gitbook.io)"
     ]
   }
 }
