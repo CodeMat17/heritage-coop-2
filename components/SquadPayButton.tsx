@@ -110,13 +110,17 @@ export default function SquadPayButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, amount, payType: type }),
       });
-      if (!initRes.ok) throw new Error("init-payment failed");
-      const initData = await initRes.json();
+      const initData = await initRes.json().catch(() => ({}));
+      if (!initRes.ok) {
+        console.error("[SquadPayButton] init-payment failed:", initRes.status, initData);
+        throw new Error(initData?.error ?? `init-payment HTTP ${initRes.status}`);
+      }
       transactionRef = initData.transaction_ref;
       token = initData.token;
       expiry = initData.expiry;
       if (!transactionRef || !token || !expiry) throw new Error("Incomplete data from init-payment");
-    } catch {
+    } catch (initErr) {
+      console.error("[SquadPayButton] init-payment error:", initErr);
       toast.error("Could not initialise payment. Please try again.");
       setLoading(false);
       return;
