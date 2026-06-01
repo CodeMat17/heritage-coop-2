@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock } from "lucide-react";
-import SquadPayButton from "@/components/SquadPayButton";
+import RegistrationPayButton from "@/components/RegistrationPayButton";
 
 const REGISTRATION_FEES: Record<string, number> = {
   bronze:  5_000,
@@ -74,7 +74,7 @@ export default function PaymentInstructionsPage() {
           </div>
 
           {email && fee > 0 ? (
-            <SquadPayButton
+            <RegistrationPayButton
               email={email}
               amount={fee}
               label={`Pay ${fmt(fee)} Now`}

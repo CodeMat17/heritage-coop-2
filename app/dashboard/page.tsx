@@ -22,7 +22,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
-import SquadPayButton from "@/components/SquadPayButton";
+import ContributionPayButton from "@/components/ContributionPayButton";
 
 const PACKAGES: Record<string, { name: string; daily: number; loan: number }> = {
   bronze:  { name: "Bronze",  daily: 500,    loan: 100_000 },
@@ -373,8 +373,7 @@ export default function DashboardPage() {
           )}
 
           {convexUser?.email && amountToPay > 0 && (
-            <SquadPayButton
-              type="contribution"
+            <ContributionPayButton
               email={convexUser.email}
               amount={amountToPay}
               label={`Pay ${fmt(amountToPay)} for ${daysCount} ${daysCount === 1 ? "day" : "days"}`}
