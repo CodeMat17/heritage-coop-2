@@ -5,33 +5,43 @@ import { CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-// Squad inline checkout CDN — exports window.squad (lowercase)
-const SQUAD_CDN = "https://checkout.squadco.com/widget/squad.min.js";
+const SQUAD_SDK_SRC = "/squad.min.js";
+
+type SquadCtor = new (cfg: Record<string, unknown>) => { setup(): void; open(): void };
+
+function resolveSquad(): SquadCtor | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any;
+  return w["@squad"] ?? w.squad ?? w.Squad;
+}
+
+let sdkPromise: Promise<void> | null = null;
 
 function loadSquadSdk(): Promise<void> {
-  if (typeof window.squad !== "undefined") return Promise.resolve();
+  if (resolveSquad()) return Promise.resolve();
+  if (sdkPromise) return sdkPromise;
 
-  const existing = document.getElementById("squad-sdk");
-  if (!existing) {
-    const script = document.createElement("script");
-    script.id = "squad-sdk";
-    script.src = SQUAD_CDN;
-    script.async = true;
-    document.head.appendChild(script);
-  }
+  sdkPromise = (async () => {
+    const res = await fetch(SQUAD_SDK_SRC);
+    if (!res.ok) throw new Error(`Failed to fetch Squad SDK (HTTP ${res.status})`);
+    const code = await res.text();
 
-  return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 15_000;
-    const poll = setInterval(() => {
-      if (typeof window.squad !== "undefined") {
-        clearInterval(poll);
-        resolve();
-      } else if (Date.now() > deadline) {
-        clearInterval(poll);
-        reject(new Error("Squad SDK did not load within 15 s"));
-      }
-    }, 100);
+    // React DevTools sets window.module in dev mode, which makes the SDK's UMD
+    // wrapper choose the module.exports branch and skip setting window globals.
+    // Shadow module/exports/define as undefined so UMD falls through to the
+    // window assignment branch: t["@squad"] = e()
+    // eslint-disable-next-line no-new-func
+    new Function("module", "exports", "define", code)(undefined, undefined, undefined);
+
+    const ctor = resolveSquad();
+    if (!ctor) throw new Error("Squad SDK ran but no constructor found on window");
+    console.info("[Squad] SDK ready:", ctor.name || "(anonymous)");
+  })().catch((err) => {
+    sdkPromise = null; // allow retry on next click
+    throw err;
   });
+
+  return sdkPromise;
 }
 
 interface Props {
@@ -55,16 +65,15 @@ export default function RegistrationPayButton({ email, amount, label = "Pay Regi
 
     setLoading(true);
 
-    // 1. Load Squad inline checkout SDK from CDN
     try {
       await loadSquadSdk();
-    } catch {
+    } catch (err) {
+      console.error("[RegistrationPayButton] SDK load failed:", err);
       toast.error("Could not load payment gateway. Please check your connection and try again.");
       setLoading(false);
       return;
     }
 
-    // 2. Generate transaction ref + HMAC token server-side
     let transactionRef: string;
     let token: string;
     let expiry: number;
@@ -87,15 +96,14 @@ export default function RegistrationPayButton({ email, amount, label = "Pay Regi
       return;
     }
 
-    // Persist so /payment-callback can verify
     sessionStorage.setItem("squad_tx_ref", transactionRef);
     sessionStorage.setItem("squad_tx_token", token);
     sessionStorage.setItem("squad_tx_expiry", String(expiry));
     sessionStorage.setItem("squad_tx_type", "registration");
 
-    // 3. Open Squad modal
     try {
-      const squadInstance = new window.squad({
+      const SquadCheckout = resolveSquad()!;
+      const instance = new SquadCheckout({
         key: publicKey,
         email,
         amount: amount * 100, // kobo
@@ -103,16 +111,16 @@ export default function RegistrationPayButton({ email, amount, label = "Pay Regi
         transaction_ref: transactionRef,
         onLoad: () => setLoading(false),
         onClose: () => setLoading(false),
-        onSuccess: (data) => {
+        onSuccess: (data: { transaction_ref?: string }) => {
           const ref = data?.transaction_ref ?? transactionRef;
           sessionStorage.setItem("squad_tx_ref", ref);
           window.location.href = `${window.location.origin}/payment-callback`;
         },
       });
-      squadInstance.setup();
-      squadInstance.open();
+      instance.setup();
+      instance.open();
     } catch (err) {
-      console.error("[RegistrationPayButton] modal open:", err);
+      console.error("[RegistrationPayButton] modal open failed:", err);
       sessionStorage.removeItem("squad_tx_ref");
       sessionStorage.removeItem("squad_tx_token");
       sessionStorage.removeItem("squad_tx_expiry");

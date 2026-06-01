@@ -20,10 +20,12 @@ interface SquadInstance {
   open(): void;
 }
 
+// The SDK may register under any of these globals depending on the build target
 declare global {
   interface Window {
-    squad: new (config: SquadConfig) => SquadInstance;
+    squad?: new (config: SquadConfig) => SquadInstance;
     Squad?: new (config: SquadConfig) => SquadInstance;
+    "@squad"?: new (config: SquadConfig) => SquadInstance;
   }
 }
 
