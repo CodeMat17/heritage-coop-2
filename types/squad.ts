@@ -29,14 +29,21 @@ export interface SquadWebhookPaymentInfo {
 export interface SquadWebhookTransaction {
   email: string;
   amount: number;
+  transaction_ref?: string;
+  transaction_status?: string;
+  transaction_currency_id?: string;
+  gateway_transaction_ref?: string;
+  merchant_email?: string;
+  merchant_name?: string;
   merchant_amount?: number;
   currency?: string;
-  transaction_status?: string;
   transaction_type?: string;
   gateway_ref?: string;
   customer_mobile?: string;
   is_recurring?: boolean;
+  recurring?: boolean;
   narration?: string;
+  plan_code?: string;
   metadata?: Record<string, unknown>;
   meta?: Record<string, unknown>;
   merchant_id?: string;

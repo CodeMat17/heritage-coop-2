@@ -30,7 +30,7 @@ function fromB64(b64: string): Uint8Array {
 async function importKey(hexKey: string): Promise<CryptoKey> {
   return globalThis.crypto.subtle.importKey(
     "raw",
-    fromHex(hexKey),
+    fromHex(hexKey).buffer as ArrayBuffer,
     { name: "AES-GCM", length: 256 },
     false,
     ["encrypt", "decrypt"]
@@ -57,9 +57,9 @@ export async function decryptBvn(stored: string, hexKey: string): Promise<string
   const ct = fromB64(rest.slice(sep + 1));
   const key = await importKey(hexKey);
   const plain = await globalThis.crypto.subtle.decrypt(
-    { name: "AES-GCM", iv, tagLength: 128 },
+    { name: "AES-GCM", iv: iv.buffer as ArrayBuffer, tagLength: 128 },
     key,
-    ct
+    ct.buffer as ArrayBuffer
   );
   return new TextDecoder().decode(plain);
 }

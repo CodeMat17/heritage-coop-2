@@ -1,30 +1,12 @@
-import { ConvexHttpClient } from "convex/browser";
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { api } from "../../../../convex/_generated/api";
-import type { SquadWebhookBody } from "@/types/squad";
+import { ConvexHttpClient } from "convex/browser";
 import { sendWelcomeEmail } from "@/lib/email";
+import { rateLimit } from "@/lib/rateLimit";
+import type { SquadWebhookBody } from "@/types/squad";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
-const RATE_LIMIT = 30;
-const WINDOW_MS = 60_000;
-
-const ipWindows = new Map<string, { count: number; windowStart: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  for (const [key, entry] of ipWindows) {
-    if (now - entry.windowStart > WINDOW_MS * 2) ipWindows.delete(key);
-  }
-  const entry = ipWindows.get(ip);
-  if (!entry || now - entry.windowStart > WINDOW_MS) {
-    ipWindows.set(ip, { count: 1, windowStart: now });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > RATE_LIMIT;
-}
 
 export async function POST(request: NextRequest) {
   const ip =
@@ -32,103 +14,136 @@ export async function POST(request: NextRequest) {
     request.headers.get("x-real-ip") ??
     "unknown";
 
-  if (isRateLimited(ip)) {
+  const { limited, retryAfter } = rateLimit(ip);
+  if (limited) {
     console.warn(`Squad webhook: rate limit exceeded for IP ${ip}`);
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
+
+  const secretKey = process.env.SQUAD_SECRET_KEY;
+  if (!secretKey) {
+    console.error("Squad webhook: SQUAD_SECRET_KEY not configured");
+    return NextResponse.json(
+      { error: "Server configuration error" },
+      { status: 500 },
+    );
+  }
+
+  // Read raw body once — needed for both signature verification and JSON parsing.
+  const rawBody = await request.text();
+
+  const authHeader = request.headers.get("x-squad-encrypted-body") ?? "";
+  if (authHeader) {
+    const expected = createHmac("sha512", secretKey)
+      .update(rawBody)
+      .digest("hex")
+      .toUpperCase();
+
+    const expectedBuf = Buffer.from(expected, "utf8");
+    const actualBuf = Buffer.from(authHeader.toUpperCase(), "utf8");
+
+    const signaturesMatch =
+      expectedBuf.length === actualBuf.length &&
+      timingSafeEqual(expectedBuf, actualBuf);
+
+    if (!signaturesMatch) {
+      return NextResponse.json({ message: "Invalid signature" }, { status: 401 });
+    }
+  }
+
+  let payload: SquadWebhookBody;
+  try {
+    payload = JSON.parse(rawBody) as SquadWebhookBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (!payload.Event || !payload.TransactionRef || !payload.Body) {
+    return NextResponse.json(
+      { error: "Invalid webhook structure" },
+      { status: 400 },
+    );
+  }
+
+  if (payload.Event !== "charge_successful") {
+    return NextResponse.json({ status: "ignored" });
   }
 
   try {
-    const rawBody = await request.text();
+    const tx = payload.Body;
+    const payType = payload.TransactionRef.startsWith("reg_") ? "registration" : "contribution";
 
-    const signature = request.headers.get("x-squad-encrypted-body");
-    if (!signature) {
-      console.error("Squad webhook: missing x-squad-encrypted-body header");
-      return NextResponse.json({ error: "Missing signature" }, { status: 401 });
-    }
-
-    const secretKey = process.env.SQUAD_SECRET_KEY;
-    if (!secretKey) {
-      console.error("Squad webhook: SQUAD_SECRET_KEY not configured");
-      return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
-    }
-
-    const expected = createHmac("sha512", secretKey).update(rawBody).digest("hex");
-    const sigBuf = Buffer.from(signature, "hex");
-    const expBuf = Buffer.from(expected, "hex");
-    const signatureValid =
-      sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
-
-    if (!signatureValid) {
-      console.error("Squad webhook: signature mismatch — request rejected");
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-    }
-
-    const body = JSON.parse(rawBody) as SquadWebhookBody;
-
-    if (!body.Event || !body.TransactionRef || !body.Body) {
-      return NextResponse.json({ error: "Invalid webhook structure" }, { status: 400 });
-    }
-
-    if (body.Event !== "charge_successful") {
-      return NextResponse.json({ status: "ignored" });
-    }
-
-    const tx = body.Body;
-
-    // Try registration first.
-    const registrationResult = await convex.action(api.registration.processRegistrationPayment, {
-      webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
-      email: tx.email,
-      transactionRef: body.TransactionRef,
-      amount: Math.round(tx.amount / 100), // convert kobo → naira
-    });
-
-    if (registrationResult.status === "ok") {
-      // Send welcome email if not already sent (e.g. client-side verify ran first)
-      if (!registrationResult.emailAlreadySent) {
-        sendWelcomeEmail({
+    if (payType === "registration") {
+      const registrationResult = await convex.action(
+        api.registration.processRegistrationPayment,
+        {
+          webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
           email: tx.email,
-          name: registrationResult.name,
-          selectedPackage: registrationResult.selectedPackage,
-          amount: Math.round(tx.amount / 100),
-          transactionRef: body.TransactionRef,
-          paidAt: registrationResult.paidAt,
-        })
-          .then(() =>
-            convex.mutation(api.registration.markWelcomeEmailSent, {
-              webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
-              userId: registrationResult.userId as never,
-            })
-          )
-          .catch((err) => console.error("webhook sendWelcomeEmail failed:", err));
-      }
-      return NextResponse.json({ status: "ok" });
-    }
-
-    if (registrationResult.status === "unauthorized") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 500 });
-    }
-
-    // "duplicate" — registration already processed; fall through to contribution.
-    // "not_found" — no pre-registered user; fall through to contribution.
-    // "insufficient_amount" — payment too small for registration fee; do NOT
-    //   silently credit as a contribution, as the funds are likely meant for
-    //   registration. Log and reject so the admin can investigate.
-    if (registrationResult.status === "insufficient_amount") {
-      console.error(
-        `Squad webhook: insufficient registration payment for email=${tx.email} ` +
-          `ref=${body.TransactionRef} amount=₦${Math.round(tx.amount / 100)}`
+          transactionRef: payload.TransactionRef,
+          amount: Math.round(tx.amount / 100), // kobo → naira
+        },
       );
-      return NextResponse.json({ error: "insufficient_amount" }, { status: 402 });
+
+      if (registrationResult.status === "ok") {
+        if (!registrationResult.emailAlreadySent) {
+          sendWelcomeEmail({
+            email: tx.email,
+            name: registrationResult.name,
+            selectedPackage: registrationResult.selectedPackage,
+            amount: Math.round(tx.amount / 100),
+            transactionRef: payload.TransactionRef,
+            paidAt: registrationResult.paidAt,
+          })
+            .then(() =>
+              convex.mutation(api.registration.markWelcomeEmailSent, {
+                webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
+                userId: registrationResult.userId as never,
+              }),
+            )
+            .catch((err) =>
+              console.error("webhook sendWelcomeEmail failed:", err),
+            );
+        }
+        return NextResponse.json({ status: "ok" });
+      }
+
+      if (registrationResult.status === "duplicate") {
+        return NextResponse.json({ status: "ok" });
+      }
+
+      if (registrationResult.status === "unauthorized") {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      if (registrationResult.status === "insufficient_amount") {
+        console.error(
+          `Squad webhook: insufficient registration payment for email=${tx.email} ` +
+            `ref=${payload.TransactionRef} amount=₦${Math.round(tx.amount / 100)}`,
+        );
+        return NextResponse.json(
+          { error: "insufficient_amount" },
+          { status: 402 },
+        );
+      }
+
+      if (registrationResult.status === "not_found") {
+        console.error(`Squad webhook: no user found for email=${tx.email} ref=${payload.TransactionRef}`);
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      return NextResponse.json({ error: "Unexpected registration error" }, { status: 500 });
     }
 
-    // Process as a daily contribution for "duplicate" and "not_found".
-    const paymentInfo = tx.payment_information || {};
+    // contribution (payType === "contribution" or unknown/missing payType for backwards compat)
+    const paymentInfo = tx.payment_information ?? {};
     const result = await convex.action(api.webhooks.processSquadPayment, {
       webhookSecret: process.env.CONVEX_WEBHOOK_SECRET!,
-      transactionRef: body.TransactionRef,
+      transactionRef: payload.TransactionRef,
       email: tx.email,
-      amount: tx.amount, // processSquadPayment divides by 100 internally
+      amount: tx.amount,
       merchantAmount: tx.merchant_amount ?? tx.amount,
       currency: tx.currency ?? "NGN",
       transactionStatus: tx.transaction_status ?? "unknown",
@@ -153,7 +168,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error processing Squad webhook:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
