@@ -1,12 +1,10 @@
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { userByExternalId } from "./users";
 
 async function requireAdmin(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
-  const user = await userByExternalId(ctx as QueryCtx, identity.subject);
-  if (!user?.isAdmin) throw new Error("Forbidden");
+  if ((identity as Record<string, unknown>).role !== "admin") throw new Error("Forbidden");
 }
 
 export const getTotalSaved = query({
