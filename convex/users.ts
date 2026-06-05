@@ -109,23 +109,28 @@ const userDataFields = {
 
 // Internal mutation — receives the BVN already encrypted.
 export const upsertUserDataInternal = internalMutation({
-  args: { externalId: v.string(), ...userDataFields },
+  args: { externalId: v.string(), identityEmail: v.optional(v.string()), ...userDataFields },
   async handler(ctx, args) {
-    const { externalId, ...data } = args;
+    const { externalId, identityEmail, ...data } = args;
+    const email = identityEmail ?? "";
 
     let user = await userByExternalId(ctx, externalId);
     if (!user) {
       const userId = await ctx.db.insert("users", {
         externalId,
         name: data.fullName,
-        email: "",
+        email,
         isOnboarded: false,
       });
       user = await ctx.db.get(userId);
     }
     if (!user) throw new Error("User not found");
 
-    await ctx.db.patch(user._id, { isOnboarded: true, name: data.fullName });
+    await ctx.db.patch(user._id, {
+      isOnboarded: true,
+      name: data.fullName,
+      ...(email && !user.email ? { email } : {}),
+    });
 
     const existing = await ctx.db
       .query("userData")
@@ -156,6 +161,7 @@ export const upsertUserData = action({
 
     await ctx.runMutation(internal.users.upsertUserDataInternal, {
       externalId: identity.subject,
+      identityEmail: identity.email ?? "",
       ...args,
       bvn: encryptedBvn,
     });

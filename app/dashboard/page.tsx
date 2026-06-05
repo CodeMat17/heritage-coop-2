@@ -246,6 +246,73 @@ export default function DashboardPage() {
               contributions to unlock your {fmt(pkg.loan)} loan entitlement.
             </p>
           )}
+
+          {/* Day-by-day breakdown */}
+          <div className='mt-6 space-y-4'>
+            {/* 90-cell visual grid */}
+            <div>
+              <p className='text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide'>
+                90-Day contribution map
+              </p>
+              <div className='flex flex-wrap gap-1'>
+                {Array.from({ length: 90 }, (_, i) => {
+                  const paid = i < daysContributed;
+                  return (
+                    <div
+                      key={i}
+                      title={paid ? `Day ${i + 1} — paid` : `Day ${i + 1} — remaining`}
+                      className={`h-4 w-4 rounded-sm transition-colors ${
+                        paid
+                          ? "bg-emerald-500"
+                          : "bg-muted border border-border"
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+              <div className='flex items-center gap-4 mt-2'>
+                <span className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+                  <span className='inline-block h-3 w-3 rounded-sm bg-emerald-500' />
+                  {daysContributed} days paid
+                </span>
+                <span className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+                  <span className='inline-block h-3 w-3 rounded-sm bg-muted border border-border' />
+                  {daysRemaining} days remaining
+                </span>
+              </div>
+            </div>
+
+            {/* Paid-date list */}
+            {contributedDates.length > 0 && (
+              <div>
+                <p className='text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide'>
+                  Payment dates
+                </p>
+                <div className='space-y-1.5 max-h-44 overflow-y-auto pr-1'>
+                  {[...contributedDates]
+                    .sort((a, b) => b.localeCompare(a))
+                    .map((iso, idx) => (
+                      <div
+                        key={iso}
+                        className='flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/40 px-3 py-2'>
+                        <div className='flex items-center gap-2'>
+                          <CheckCircle2 className='h-3.5 w-3.5 text-emerald-500 shrink-0' />
+                          <span className='text-xs font-medium'>
+                            Day {daysContributed - idx}
+                          </span>
+                          <span className='text-xs text-muted-foreground'>
+                            {formatDateDisplay(iso)}
+                          </span>
+                        </div>
+                        <span className='text-xs font-semibold text-emerald-700 dark:text-emerald-400'>
+                          {fmt(pkg.daily)}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
         </motion.div>
 
         {/* Payment section */}

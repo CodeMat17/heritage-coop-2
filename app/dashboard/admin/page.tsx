@@ -423,7 +423,7 @@ export default function AdminPage() {
                             </div>
                             <div className='min-w-0'>
                               <p className='text-sm font-medium truncate'>
-                                {u.name || "—"}
+                                {u.name || "—" }
                               </p>
                               <p className='text-xs text-muted-foreground truncate'>
                                 {u.email}
