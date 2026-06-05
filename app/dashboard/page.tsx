@@ -214,53 +214,42 @@ export default function DashboardPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
           className='rounded-2xl bg-card border border-border p-6 shadow-sm'>
-          <div className='flex items-center justify-between mb-4'>
+          {/* <div className='flex items-center justify-between mb-4'>
             <h2 className='font-semibold'>90-Day Progress</h2>
             <span className='text-sm text-muted-foreground'>
               {daysContributed} / 90 days
             </span>
-          </div>
-          <div className='relative mb-2'>
+          </div> */}
+          {/* <div className='relative mb-2'>
             <Progress
               value={progressPct}
               className='h-3 rounded-full bg-muted'
             />
-          </div>
-          <div className='flex items-center justify-between text-xs text-muted-foreground mb-4'>
+          </div> */}
+          {/* <div className='flex items-center justify-between text-xs text-muted-foreground mb-4'>
             <span>Day 0</span>
             <span className='font-medium text-emerald-600'>{progressPct}%</span>
             <span>Day 90</span>
-          </div>
-          {isEligible ? (
-            <div className='flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'>
-              <CheckCircle2 className='h-4 w-4 text-emerald-600 shrink-0' />
-              <p className='text-sm text-emerald-700 dark:text-emerald-400 font-medium'>
-                Congratulations! You are now eligible for a {fmt(pkg.loan)}{" "}
-                loan.
-              </p>
-              <ChevronRight className='h-4 w-4 text-emerald-600 ml-auto' />
-            </div>
-          ) : (
-            <p className='text-sm text-muted-foreground'>
-              {daysRemaining} more {daysRemaining === 1 ? "day" : "days"} of
-              contributions to unlock your {fmt(pkg.loan)} loan entitlement.
-            </p>
-          )}
+          </div> */}
 
           {/* Day-by-day breakdown */}
-          <div className='mt-6 space-y-4'>
+          <div className='mb-6 space-y-4'>
             {/* 90-cell visual grid */}
             <div>
-              <p className='text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide'>
+              <h2 className=' font-semibold mb-2 uppercase tracking-wide'>
                 90-Day contribution map
-              </p>
+              </h2>
               <div className='flex flex-wrap gap-1'>
                 {Array.from({ length: 90 }, (_, i) => {
                   const paid = i < daysContributed;
                   return (
                     <div
                       key={i}
-                      title={paid ? `Day ${i + 1} — paid` : `Day ${i + 1} — remaining`}
+                      title={
+                        paid
+                          ? `Day ${i + 1} — paid`
+                          : `Day ${i + 1} — remaining`
+                      }
                       className={`h-4 w-4 rounded-sm transition-colors ${
                         paid
                           ? "bg-emerald-500"
@@ -313,6 +302,22 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+
+          {isEligible ? (
+            <div className='flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'>
+              <CheckCircle2 className='h-4 w-4 text-emerald-600 shrink-0' />
+              <p className='text-sm text-emerald-700 dark:text-emerald-400 font-medium'>
+                Congratulations! You are now eligible for a {fmt(pkg.loan)}{" "}
+                loan.
+              </p>
+              <ChevronRight className='h-4 w-4 text-emerald-600 ml-auto' />
+            </div>
+          ) : (
+            <p className='text-sm text-muted-foreground'>
+              {daysRemaining} more {daysRemaining === 1 ? "day" : "days"} of
+              contributions to unlock your {fmt(pkg.loan)} loan entitlement.
+            </p>
+          )}
         </motion.div>
 
         {/* Payment section */}
@@ -322,12 +327,12 @@ export default function DashboardPage() {
           transition={{ delay: 0.2 }}
           className='rounded-2xl bg-card border border-border p-6 shadow-sm'>
           <h2 className='font-semibold mb-1'>Daily Contribution</h2>
-          <p className='text-sm text-muted-foreground mb-5'>
-            {fmt(pkg.daily)}/day · pay today or multiple days ahead
+          <p className=' text-emerald-600 font-bold text-xl mb-5'>
+            {fmt(pkg.daily)}/day
           </p>
 
           {/* Day selector */}
-          <div className='mb-5'>
+          {/* <div className='mb-5'>
             <p className='text-sm font-medium mb-3'>
               Number of days to pay for
             </p>
@@ -346,10 +351,10 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </div> */}
 
           {/* Dates preview */}
-          <div className='mb-5'>
+          {/* <div className='mb-5'>
             <p className='text-sm font-medium mb-3'>Dates being paid for</p>
             <div className='space-y-2 max-h-48 overflow-y-auto pr-1'>
               {datesToPay.map((d) => (
@@ -361,17 +366,18 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
 
           <Separator className='mb-5' />
 
           {/* Total + pay button */}
-          <div className='flex items-center justify-between mb-5'>
-            <p className='text-xs text-muted-foreground'>Total to pay</p>
+          {/* <div className='flex items-center mb-5 gap-1'>
+           
             <p className='text-2xl font-bold text-emerald-600'>
               {fmt(amountToPay)}
             </p>
-          </div>
+            <span>/ day</span>
+          </div> */}
 
           {stats?.lastPaymentDate && (
             <p className='text-xs text-muted-foreground mb-4'>
@@ -391,11 +397,12 @@ export default function DashboardPage() {
             <ContributionPayButton
               email={convexUser.email}
               amount={amountToPay}
-              label={`Pay ${fmt(amountToPay)} for ${daysCount} ${daysCount === 1 ? "day" : "days"}`}
+              label={`Pay ${fmt(amountToPay)}`}
             />
           )}
           <p className='text-xs text-muted-foreground mt-3'>
-            Your contribution days will be updated automatically once payment is confirmed.
+            Your contribution days will be updated automatically once payment is
+            confirmed.
           </p>
         </motion.div>
 
@@ -409,7 +416,7 @@ export default function DashboardPage() {
         </motion.div> */}
 
         {/* Contribution history */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
@@ -462,7 +469,7 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-        </motion.div>
+        </motion.div> */}
 
         {/* Loan section */}
         {loans && loans.length > 0 && (
