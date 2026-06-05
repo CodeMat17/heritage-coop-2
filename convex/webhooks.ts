@@ -81,7 +81,25 @@ export const processSquadPayment = action({
       console.error(`processSquadPayment: unknown package "${pkg}" for user ${user._id}`);
       return { status: "unknown_package" };
     }
-    const daysCount = Math.max(1, Math.floor(amountNaira / dailyRate));
+    const daysCount = Math.floor(amountNaira / dailyRate);
+    if (daysCount < 1) {
+      console.error(
+        `processSquadPayment: underpayment — paid ₦${amountNaira}, need ₦${dailyRate} for package "${pkg}" (user ${user._id})`
+      );
+      await ctx.runMutation(internal.webhooks.insertContribution, {
+        userId: user._id,
+        transactionRef: args.transactionRef,
+        amount: amountNaira,
+        daysCount: 0,
+        coveredDates: [],
+        status: "underpayment",
+        gatewayRef: args.gatewayRef,
+        currency: args.currency ?? "NGN",
+        squadCreatedAt: args.squadCreatedAt,
+      });
+      return { status: "underpayment" };
+    }
+
     const coveredArr = await ctx.runQuery(internal.webhooks.getCoveredDatesByUserId, {
       userId: user._id,
     });
