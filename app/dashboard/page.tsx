@@ -208,6 +208,92 @@ export default function DashboardPage() {
           ))}
         </motion.div>
 
+        {/* Payment section */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className='rounded-2xl bg-card border border-border p-6 shadow-sm'>
+          <h2 className='font-semibold mb-1'>Daily Contribution</h2>
+          <p className=' text-emerald-600 font-bold text-xl mb-5'>
+            {fmt(pkg.daily)}/day
+          </p>
+
+          {/* Day selector */}
+          {/* <div className='mb-5'>
+            <p className='text-sm font-medium mb-3'>
+              Number of days to pay for
+            </p>
+            <div className='flex flex-wrap gap-2'>
+              {DAY_OPTIONS.map((d) => (
+                <button
+                  key={d}
+                  type='button'
+                  onClick={() => setDaysCount(d)}
+                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                    daysCount === d
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "border-border bg-background hover:border-emerald-400 hover:text-emerald-600"
+                  }`}>
+                  {d} {d === 1 ? "day" : "days"}
+                </button>
+              ))}
+            </div>
+          </div> */}
+
+          {/* Dates preview */}
+          {/* <div className='mb-5'>
+            <p className='text-sm font-medium mb-3'>Dates being paid for</p>
+            <div className='space-y-2 max-h-48 overflow-y-auto pr-1'>
+              {datesToPay.map((d) => (
+                <div
+                  key={d}
+                  className='flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2'>
+                  <span className='text-sm'>{formatDateDisplay(d)}</span>
+                  <span className='text-sm font-medium'>{fmt(pkg.daily)}</span>
+                </div>
+              ))}
+            </div>
+          </div> */}
+
+          <Separator className='mb-5' />
+
+          {/* Total + pay button */}
+          {/* <div className='flex items-center mb-5 gap-1'>
+           
+            <p className='text-2xl font-bold text-emerald-600'>
+              {fmt(amountToPay)}
+            </p>
+            <span>/ day</span>
+          </div> */}
+
+          {stats?.lastPaymentDate && (
+            <p className='text-xs text-muted-foreground mb-4'>
+              Last payment:{" "}
+              {new Date(stats.lastPaymentDate).toLocaleDateString("en-NG", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          )}
+
+          {convexUser?.email && amountToPay > 0 && (
+            <ContributionPayButton
+              email={convexUser.email}
+              amount={amountToPay}
+              label={`Pay ${fmt(amountToPay)}`}
+            />
+          )}
+          <p className='text-xs text-muted-foreground mt-3'>
+            Your contribution days will be updated automatically once payment is
+            confirmed.
+          </p>
+        </motion.div>
+
         {/* Progress */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -318,92 +404,6 @@ export default function DashboardPage() {
               contributions to unlock your {fmt(pkg.loan)} loan entitlement.
             </p>
           )}
-        </motion.div>
-
-        {/* Payment section */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className='rounded-2xl bg-card border border-border p-6 shadow-sm'>
-          <h2 className='font-semibold mb-1'>Daily Contribution</h2>
-          <p className=' text-emerald-600 font-bold text-xl mb-5'>
-            {fmt(pkg.daily)}/day
-          </p>
-
-          {/* Day selector */}
-          {/* <div className='mb-5'>
-            <p className='text-sm font-medium mb-3'>
-              Number of days to pay for
-            </p>
-            <div className='flex flex-wrap gap-2'>
-              {DAY_OPTIONS.map((d) => (
-                <button
-                  key={d}
-                  type='button'
-                  onClick={() => setDaysCount(d)}
-                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                    daysCount === d
-                      ? "bg-emerald-600 text-white border-emerald-600"
-                      : "border-border bg-background hover:border-emerald-400 hover:text-emerald-600"
-                  }`}>
-                  {d} {d === 1 ? "day" : "days"}
-                </button>
-              ))}
-            </div>
-          </div> */}
-
-          {/* Dates preview */}
-          {/* <div className='mb-5'>
-            <p className='text-sm font-medium mb-3'>Dates being paid for</p>
-            <div className='space-y-2 max-h-48 overflow-y-auto pr-1'>
-              {datesToPay.map((d) => (
-                <div
-                  key={d}
-                  className='flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2'>
-                  <span className='text-sm'>{formatDateDisplay(d)}</span>
-                  <span className='text-sm font-medium'>{fmt(pkg.daily)}</span>
-                </div>
-              ))}
-            </div>
-          </div> */}
-
-          <Separator className='mb-5' />
-
-          {/* Total + pay button */}
-          {/* <div className='flex items-center mb-5 gap-1'>
-           
-            <p className='text-2xl font-bold text-emerald-600'>
-              {fmt(amountToPay)}
-            </p>
-            <span>/ day</span>
-          </div> */}
-
-          {stats?.lastPaymentDate && (
-            <p className='text-xs text-muted-foreground mb-4'>
-              Last payment:{" "}
-              {new Date(stats.lastPaymentDate).toLocaleDateString("en-NG", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-          )}
-
-          {convexUser?.email && amountToPay > 0 && (
-            <ContributionPayButton
-              email={convexUser.email}
-              amount={amountToPay}
-              label={`Pay ${fmt(amountToPay)}`}
-            />
-          )}
-          <p className='text-xs text-muted-foreground mt-3'>
-            Your contribution days will be updated automatically once payment is
-            confirmed.
-          </p>
         </motion.div>
 
         {/* Calendar */}
