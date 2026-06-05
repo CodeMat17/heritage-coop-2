@@ -359,7 +359,7 @@ export default function AdminPage() {
                     icon: TrendingUp,
                   },
                   {
-                    label: "Total Saved",
+                    label: "Total Contributed",
                     value: totalSavedData == null ? null : fmt(totalSavedData),
                     icon: Wallet,
                   },
