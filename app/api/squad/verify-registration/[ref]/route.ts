@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { ConvexHttpClient } from "convex/browser";
 import { NextRequest, NextResponse } from "next/server";
 import { api } from "../../../../../convex/_generated/api";
@@ -19,24 +18,6 @@ const SQUAD_HEADERS = (secretKey: string) => ({
   "User-Agent": "HeritageCoop/1.0",
 });
 
-function verifyHmacToken(
-  secret: string,
-  transactionRef: string,
-  payType: string,
-  expiry: number,
-  clientToken: string
-): boolean {
-  if (Date.now() > expiry) return false;
-  const expected = createHmac("sha256", secret)
-    .update(`${transactionRef}:${payType}:${expiry}`)
-    .digest("hex");
-  const expBuf = Buffer.from(expected, "hex");
-  const cliBuf = Buffer.from(
-    clientToken.length === expected.length ? clientToken : expected,
-    "hex"
-  );
-  return timingSafeEqual(expBuf, cliBuf) && clientToken === expected;
-}
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ ref: string }> }) {
   const ip =
@@ -58,37 +39,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "Server configuration error." }, { status: 500 });
   }
 
-  const hmacSecret = process.env.PAYMENT_HMAC_SECRET;
-  if (!hmacSecret) {
-    console.error("[verify-registration] PAYMENT_HMAC_SECRET not configured");
-    return NextResponse.json({ success: false, message: "Server configuration error." }, { status: 500 });
-  }
-
   const { ref: transactionRef } = await params;
 
   if (!/^[\w\-.]{4,200}$/.test(transactionRef)) {
     return NextResponse.json({ success: false, message: "Invalid transactionRef format." }, { status: 400 });
-  }
-
-  let clientToken: string;
-  let expiry: number;
-  try {
-    const body = await request.json();
-    clientToken = body?.token;
-    expiry = body?.expiry;
-    if (!clientToken || typeof clientToken !== "string") {
-      return NextResponse.json({ success: false, message: "Payment token is required." }, { status: 400 });
-    }
-    if (!expiry || typeof expiry !== "number") {
-      return NextResponse.json({ success: false, message: "Token expiry is required." }, { status: 400 });
-    }
-  } catch {
-    return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
-  }
-
-  if (!verifyHmacToken(hmacSecret, transactionRef, "registration", expiry, clientToken)) {
-    console.warn(`[verify-registration] invalid/expired token for ref=${transactionRef}`);
-    return NextResponse.json({ success: false, message: "Invalid or expired payment token." }, { status: 403 });
   }
 
   let squadData: SquadVerifyResponse;
