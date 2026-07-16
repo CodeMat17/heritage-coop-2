@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
 import { format } from "date-fns";
@@ -38,6 +38,7 @@ import {
   CalendarIcon,
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
+import { searchUsers, setRole, removeRole, listAdmins, type AdminUserRow } from "./_actions";
 
 function usePackagesLookup() {
   const packages = useQuery(api.packages.list);
@@ -1424,6 +1425,252 @@ function MembersSection({ role }: { role: string | undefined }) {
   );
 }
 
+// ── Admins management (super-admin only) ─────────────────────────────────
+
+const ADMIN_ROLES = [
+  { value: "super-admin", label: "Super Admin" },
+  { value: "content-admin", label: "Content Admin" },
+  { value: "assist-admin", label: "Assist Admin" },
+  { value: "finance-admin", label: "Finance Admin" },
+] as const;
+
+function AdminUserRowItem({
+  u,
+  pendingId,
+  onSetRole,
+  onRemoveRole,
+}: {
+  u: AdminUserRow;
+  pendingId: string | null;
+  onSetRole: (id: string, role: string) => void;
+  onRemoveRole: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border p-3">
+      <div className="min-w-0">
+        {/* <p className="text-sm font-medium truncate">
+          {[u.firstName, u.lastName].filter(Boolean).join(" ") || "Unnamed user"}
+        </p> */}
+        <p className="font-medium text-muted-foreground truncate">{u.email}</p>
+        {u.role && (
+          <Badge className="mt-1 text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-transparent">
+            {u.role}
+          </Badge>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {ADMIN_ROLES.map((r) => (
+          <Button
+            key={r.value}
+            type="button"
+            size="sm"
+            variant={u.role === r.value ? "default" : "outline"}
+            disabled={pendingId === u.id}
+            onClick={() => onSetRole(u.id, r.value)}
+          >
+            {r.label}
+          </Button>
+        ))}
+        {u.role && (
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            disabled={pendingId === u.id}
+            onClick={() => onRemoveRole(u.id)}
+          >
+            Remove
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminsPanel() {
+  const [admins, setAdmins] = useState<AdminUserRow[]>([]);
+  const [adminsLoading, setAdminsLoading] = useState(true);
+
+  const [query, setQuery] = useState("");
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const loadAdmins = async () => {
+    setAdminsLoading(true);
+    const res = await listAdmins();
+    setAdminsLoading(false);
+    if ("message" in res) {
+      toast.error(res.message);
+      return;
+    }
+    setAdmins(res.users);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const res = await listAdmins();
+      if (cancelled) return;
+      setAdminsLoading(false);
+      if ("message" in res) {
+        toast.error(res.message);
+        return;
+      }
+      setAdmins(res.users);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const runSearch = async (q: string) => {
+    const email = q.trim();
+    if (!email) {
+      setUsers([]);
+      setSearched(false);
+      return;
+    }
+    setLoading(true);
+    const res = await searchUsers(email);
+    setLoading(false);
+    setSearched(true);
+    if ("message" in res) {
+      toast.error(res.message);
+      return;
+    }
+    setUsers(res.users);
+  };
+
+  const handleSetRole = async (id: string, role: string) => {
+    setPendingId(id);
+    const formData = new FormData();
+    formData.set("id", id);
+    formData.set("role", role);
+    const res = await setRole(formData);
+    setPendingId(null);
+    if (typeof res.message === "string" && res.message === "Not Authorized") {
+      toast.error(res.message);
+      return;
+    }
+    toast.success("Role updated");
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role } : u)));
+    loadAdmins();
+  };
+
+  const handleRemoveRole = async (id: string) => {
+    setPendingId(id);
+    const formData = new FormData();
+    formData.set("id", id);
+    const res = await removeRole(formData);
+    setPendingId(null);
+    if (typeof res.message === "string" && res.message === "Not Authorized") {
+      toast.error(res.message);
+      return;
+    }
+    toast.success("Role removed");
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role: null } : u)));
+    setAdmins((prev) => prev.filter((u) => u.id !== id));
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-border">
+          <h2 className="font-semibold">Current Admins</h2>
+          <p className="text-sm text-muted-foreground">
+            Members who currently hold an admin role.
+          </p>
+        </div>
+
+        <div className="p-4 sm:p-6">
+          {adminsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <StatSpinner />
+            </div>
+          ) : admins.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No admins yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {admins.map((u) => (
+                <AdminUserRowItem
+                  key={u.id}
+                  u={u}
+                  pendingId={pendingId}
+                  onSetRole={handleSetRole}
+                  onRemoveRole={handleRemoveRole}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-border">
+          <h2 className="font-semibold">Assign Admin Role</h2>
+          <p className="text-sm text-muted-foreground">
+            Search a member by exact email to assign an admin role.
+          </p>
+        </div>
+
+        <div className="p-4 sm:p-6 space-y-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              runSearch(query);
+            }}
+            className="flex gap-2"
+          >
+            <Input
+              type="email"
+              placeholder="Search by exact email address"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <Button type="submit">Search</Button>
+          </form>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <StatSpinner />
+            </div>
+          ) : !searched ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Enter an email address to search.</p>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No user found with that email.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {users.map((u) => (
+                <AdminUserRowItem
+                  key={u.id}
+                  u={u}
+                  pendingId={pendingId}
+                  onSetRole={handleSetRole}
+                  onRemoveRole={handleRemoveRole}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user: clerkUser } = useUser();
   const { isAuthenticated } = useConvexAuth();
@@ -1431,6 +1678,7 @@ export default function AdminPage() {
   const isContent = role === "content-admin" || role === "super-admin";
   const isAssist = role === "assist-admin" || role === "super-admin";
   const isFinance = role === "finance-admin" || role === "super-admin";
+  const isSuperAdmin = role === "super-admin";
 
   const allUsers = useQuery(api.admin.getAllUsers, isAuthenticated ? {} : "skip");
   const totalSavedData = useQuery(api.admin.getTotalSaved, isAuthenticated && isFinance ? {} : "skip");
@@ -1439,6 +1687,7 @@ export default function AdminPage() {
     isContent && { value: "content", label: "Content" },
     isAssist && { value: "assist", label: "Assist" },
     isFinance && { value: "finance", label: "Finance" },
+    isSuperAdmin && { value: "admins", label: "Admins" },
   ].filter(Boolean) as { value: string; label: string }[];
 
   const onboardedCount = (allUsers ?? []).filter((u) => u.isOnboarded).length;
@@ -1537,7 +1786,7 @@ export default function AdminPage() {
               <TabsTrigger
                 key={t.value}
                 value={t.value}
-                className='sm:flex-none'>
+                className='sm:flex-none data-[state=active]:bg-emerald-600 data-[state=active]:text-white dark:data-[state=active]:bg-emerald-600 dark:data-[state=active]:text-white'>
                 {t.label}
               </TabsTrigger>
             ))}
@@ -1559,6 +1808,12 @@ export default function AdminPage() {
           {isFinance && (
             <TabsContent value='finance' className='mt-4 space-y-6'>
               <FinanceReports />
+            </TabsContent>
+          )}
+
+          {isSuperAdmin && (
+            <TabsContent value='admins' className='mt-4 space-y-6'>
+              <AdminsPanel />
             </TabsContent>
           )}
         </Tabs>
