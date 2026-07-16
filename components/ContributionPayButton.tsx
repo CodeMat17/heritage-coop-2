@@ -95,7 +95,28 @@ export default function ContributionPayButton({
 
     try {
       const amountInKobo = Math.round(amount * 100);
-      const transactionRef = `HC-CONT-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+      const initRes = await fetch("/api/squad/init-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, amount: amountInKobo, payType: "contribution" }),
+      });
+      const initResult = await initRes.json();
+
+      if (!initRes.ok || !initResult.success) {
+        setError(initResult.message ?? "Failed to initiate payment.");
+        setLoading(false);
+        return;
+      }
+
+      const transactionRef = initResult.data?.transaction_ref;
+      const verifyToken = initResult.data?._verifyToken;
+      const verifyExpiry = initResult.data?._verifyExpiry;
+      if (!transactionRef) {
+        setError("Payment initiation returned no transaction reference.");
+        setLoading(false);
+        return;
+      }
 
       squadRef.current = new SquadConstructor({
         key: process.env.NEXT_PUBLIC_SQUAD_PUBLIC_KEY!,
@@ -119,7 +140,7 @@ export default function ContributionPayButton({
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({}),
+                  body: JSON.stringify({ token: verifyToken, expiry: verifyExpiry }),
                 }
               );
               const verifyData = await verifyRes.json();

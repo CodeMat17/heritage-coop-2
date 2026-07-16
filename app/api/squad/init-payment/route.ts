@@ -5,8 +5,6 @@ import { rateLimit } from "@/lib/rateLimit";
 interface InitiatePaymentBody {
   email: string;
   amount: number;
-  currency?: string;
-  transaction_ref?: string;
   payType?: "registration" | "contribution";
 }
 
@@ -24,8 +22,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const hmacSecret = process.env.PAYMENT_HMAC_SECRET;
+  if (!hmacSecret) {
+    console.error("[init-payment] PAYMENT_HMAC_SECRET not configured");
+    return NextResponse.json({ success: false, message: "Server configuration error." }, { status: 500 });
+  }
+
   const body: InitiatePaymentBody = await request.json();
-  const { email, amount, currency = "NGN", transaction_ref, payType = "registration" } = body;
+  const { email, amount, payType = "registration" } = body;
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ success: false, message: "Invalid email address." }, { status: 400 });
@@ -37,73 +41,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const payload: Record<string, unknown> = {
-    email,
-    amount,
-    currency,
-    initiate_type: "inline",
-    callback_url: process.env.SQUAD_WEBHOOK_URL,
-  };
-
+  // The Squad inline widget creates and initiates the transaction itself
+  // (using the public key, client-side) once it opens with this ref — we
+  // must not pre-register the same ref via Squad's server-side
+  // /transaction/initiate first, or Squad's own widget hangs trying to
+  // initiate a ref that already exists.
   const prefix = payType === "contribution" ? "con" : "reg";
-  const ref = transaction_ref ?? `${prefix}_${randomBytes(16).toString("hex")}`;
-  payload.transaction_ref = ref;
+  const transactionRef = `${prefix}_${randomBytes(16).toString("hex")}`;
+  const expiry = Date.now() + 30 * 60 * 1000; // 30 minutes
+  const token = createHmac("sha256", hmacSecret)
+    .update(`${transactionRef}:${payType}:${expiry}`)
+    .digest("hex");
 
-  let response: Response;
-  try {
-    const squadBase =
-      process.env.NODE_ENV === "production"
-        ? "https://api-d.squadco.com"
-        : "https://sandbox-api-d.squadco.com";
-    response = await fetch(`${squadBase}/transaction/initiate`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.SQUAD_SECRET_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch (err) {
-    console.error("[Squad initiate] Network error:", err);
-    return NextResponse.json(
-      { success: false, message: `Network error reaching Squad API: ${(err as Error).message}` },
-      { status: 502 }
-    );
-  }
-
-  const text = await response.text();
-  if (!response.ok) {
-    console.error("[Squad initiate] Non-OK response status:", response.status);
-  }
-
-  let data: unknown;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    return NextResponse.json(
-      { success: false, message: `Squad API returned non-JSON: ${text.slice(0, 200)}` },
-      { status: 502 }
-    );
-  }
-
-  // If Squad returned success, attach a short-lived HMAC token so the client
-  // can call /api/squad/verify-registration/[ref] or /api/squad/verify-contributions/[ref]
-  // without being able to forge the ref. payType is bound into the signature.
-  const squadData = data as { success?: boolean; data?: { transaction_ref?: string } };
-  if (squadData?.success && squadData?.data?.transaction_ref) {
-    const hmacSecret = process.env.PAYMENT_HMAC_SECRET;
-    if (hmacSecret) {
-      const ref = squadData.data.transaction_ref;
-      const expiry = Date.now() + 30 * 60 * 1000; // 30 minutes
-      const token = createHmac("sha256", hmacSecret)
-        .update(`${ref}:${payType}:${expiry}`)
-        .digest("hex");
-      return NextResponse.json(
-        { ...squadData, data: { ...squadData.data, _verifyToken: token, _verifyExpiry: expiry, token, expiry } },
-        { status: response.status }
-      );
-    }
-  }
-
-  return NextResponse.json(data, { status: response.status });
+  return NextResponse.json({
+    success: true,
+    data: { transaction_ref: transactionRef, _verifyToken: token, _verifyExpiry: expiry },
+  });
 }
