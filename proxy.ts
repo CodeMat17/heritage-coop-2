@@ -6,9 +6,14 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  "/not-admin",
 ]);
 
 const isAdminRoute = createRouteMatcher(["/dashboard/admin(.*)"]);
+
+// Keep in sync with AdminRole in convex/lib/adminAuth.ts — Convex functions
+// can't import from this app/ file, so the list is intentionally duplicated.
+const ADMIN_ROLES = ["content-admin", "finance-admin", "assist-admin", "super-admin"];
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (isPublicRoute(req)) return NextResponse.next();
@@ -18,8 +23,8 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
   if (isAdminRoute(req)) {
     const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-    if (role !== "admin") {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+    if (!role || !ADMIN_ROLES.includes(role)) {
+      return NextResponse.redirect(new URL("/not-admin", req.url));
     }
   }
 

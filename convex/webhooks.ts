@@ -2,19 +2,9 @@ import { action, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
-// Daily contribution rates per package (naira). Must stay in sync with the
-// PACKAGES constant in app/dashboard/page.tsx.
-const DAILY_RATES: Record<string, number> = {
-  bronze:  500,
-  silver:  1_000,
-  gold:    2_000,
-  diamond: 5_000,
-  emerald: 10_000,
-};
-
 // Returns the next `count` calendar dates (YYYY-MM-DD) starting from today
 // that are not already in `alreadyCovered`.
-function computeNextUnpaidDates(alreadyCovered: Set<string>, count: number): string[] {
+export function computeNextUnpaidDates(alreadyCovered: Set<string>, count: number): string[] {
   const dates: string[] = [];
   const cursor = new Date();
   cursor.setUTCHours(0, 0, 0, 0);
@@ -75,16 +65,19 @@ export const processSquadPayment = action({
     // Compute covered dates server-side from amount + package rate (same logic as
     // recordVerifiedPayment) so the webhook fallback credits the correct number of
     // days even if the client metadata is missing or truncated.
-    const pkg = user.selectedPackage ?? "";
-    const dailyRate = DAILY_RATES[pkg];
+    const pkgId = user.selectedPackage ?? "";
+    const pkgRow = pkgId
+      ? await ctx.runQuery(internal.packages.getByIdInternal, { packageId: pkgId })
+      : null;
+    const dailyRate = pkgRow?.daily;
     if (!dailyRate) {
-      console.error(`processSquadPayment: unknown package "${pkg}" for user ${user._id}`);
+      console.error(`processSquadPayment: unknown package "${pkgId}" for user ${user._id}`);
       return { status: "unknown_package" };
     }
     const daysCount = Math.floor(amountNaira / dailyRate);
     if (daysCount < 1) {
       console.error(
-        `processSquadPayment: underpayment — paid ₦${amountNaira}, need ₦${dailyRate} for package "${pkg}" (user ${user._id})`
+        `processSquadPayment: underpayment — paid ₦${amountNaira}, need ₦${dailyRate} for package "${pkgId}" (user ${user._id})`
       );
       await ctx.runMutation(internal.webhooks.insertContribution, {
         userId: user._id,
@@ -179,6 +172,8 @@ export const insertContribution = internalMutation({
     gatewayRef: v.optional(v.string()),
     currency: v.string(),
     squadCreatedAt: v.optional(v.string()),
+    recordedBy: v.optional(v.string()),
+    paymentMethod: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("userContributions", args);

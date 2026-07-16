@@ -33,9 +33,17 @@ export const getMyStats = query({
       totalAmount += c.amount;
     }
 
+    const pkg = user.selectedPackage
+      ? await ctx.db
+          .query("packages")
+          .withIndex("byPackageId", (q) => q.eq("packageId", user.selectedPackage!))
+          .unique()
+      : null;
+    const durationDays = pkg?.durationDays ?? 90;
+
     const daysContributed = allDates.size;
-    const daysRemaining = Math.max(0, 90 - daysContributed);
-    const isLoanEligible = daysContributed >= 90;
+    const daysRemaining = Math.max(0, durationDays - daysContributed);
+    const isLoanEligible = daysContributed >= durationDays;
 
     const sortedDates = Array.from(allDates).sort();
     const lastPayment =

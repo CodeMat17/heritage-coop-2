@@ -1,15 +1,25 @@
 "use client";
 
 import { api } from "@/convex/_generated/api";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Calendar,
   CheckCircle2,
@@ -23,14 +33,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import ContributionPayButton from "@/components/ContributionPayButton";
-
-const PACKAGES: Record<string, { name: string; daily: number; loan: number }> = {
-  bronze:  { name: "Bronze",  daily: 500,    loan: 100_000 },
-  silver:  { name: "Silver",  daily: 1_000,  loan: 180_000 },
-  gold:    { name: "Gold",    daily: 2_000,  loan: 360_000 },
-  diamond: { name: "Diamond", daily: 5_000,  loan: 1_000_000 },
-  emerald: { name: "Emerald", daily: 10_000, loan: 2_000_000 },
-};
 
 const DAY_OPTIONS = [1, 2, 3, 5, 7, 14, 30];
 
@@ -66,6 +68,12 @@ function formatDateDisplay(iso: string) {
   });
 }
 
+function formatDateDisplay2(ts: number) {
+  return new Date(ts).toLocaleDateString("en-NG", {
+    day: "numeric", month: "short", year: "numeric",
+  });
+}
+
 export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const { user: clerkUser } = useUser();
@@ -74,8 +82,20 @@ export default function DashboardPage() {
   const stats = useQuery(api.userContributions.getMyStats);
   const contributions = useQuery(api.userContributions.getMyContributions);
   const loans = useQuery(api.userLoans.getMyLoans);
+  const packagesData = useQuery(api.packages.list);
+  const PACKAGES: Record<string, { name: string; daily: number; loan: number; durationDays: number }> =
+    Object.fromEntries(
+      (packagesData ?? []).map((p) => [
+        p.packageId,
+        { name: p.name, daily: p.daily, loan: p.loanMax, durationDays: p.durationDays },
+      ])
+    );
+  const applyForLoan = useMutation(api.userLoans.applyForLoan);
 
   const [daysCount, setDaysCount] = useState(1);
+  const [applying, setApplying] = useState(false);
+  const [loanAmountInput, setLoanAmountInput] = useState("");
+  const [loanDialogOpen, setLoanDialogOpen] = useState(false);
 
   // Auth guards
   useEffect(() => {
@@ -92,7 +112,7 @@ export default function DashboardPage() {
 
   const pkg = convexUser?.selectedPackage ? PACKAGES[convexUser.selectedPackage] : null;
   const daysContributed = stats?.daysContributed ?? 0;
-  const daysRemaining = stats?.daysRemaining ?? 90;
+  const daysRemaining = stats?.daysRemaining ?? pkg?.durationDays ?? 90;
   const totalAmount = stats?.totalAmount ?? 0;
   const isEligible = stats?.isLoanEligible ?? false;
   const contributedDates = useMemo(
@@ -106,13 +126,43 @@ export default function DashboardPage() {
   );
 
   const amountToPay = pkg ? pkg.daily * daysCount : 0;
-  const progressPct = Math.min(100, Math.round((daysContributed / 90) * 100));
+  const durationDays = pkg?.durationDays ?? 90;
+  const progressPct = Math.min(100, Math.round((daysContributed / durationDays) * 100));
 
   const firstName = convexUser?.name?.split(" ")[0] || "Member";
 
-  const isAdmin = clerkUser?.publicMetadata?.role === "admin";
+  const hasActiveLoan = (loans ?? []).some((l) =>
+    ["pending", "approved", "disbursed"].includes(l.status)
+  );
 
-  if (!convexUser || !pkg) {
+  async function handleApplyForLoan() {
+    if (!convexUser?.selectedPackage || !pkg) return;
+    const amount = Number(loanAmountInput);
+    if (!amount || amount <= 0) {
+      toast.error("Enter a valid loan amount.");
+      return;
+    }
+    if (amount > pkg.loan) {
+      toast.error(`Amount cannot exceed your loan cap of ${fmt(pkg.loan)}.`);
+      return;
+    }
+    setApplying(true);
+    try {
+      await applyForLoan({ amount, packageId: convexUser.selectedPackage });
+      toast.success("Loan application submitted!");
+      setLoanDialogOpen(false);
+      setLoanAmountInput("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to apply for loan.");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  const ADMIN_ROLES = ["content-admin", "finance-admin", "assist-admin", "super-admin"];
+  const isAdmin = ADMIN_ROLES.includes(clerkUser?.publicMetadata?.role as string);
+
+  if (!convexUser || !pkg || packagesData === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="h-8 w-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />
@@ -173,7 +223,7 @@ export default function DashboardPage() {
           {[
             {
               label: "Days contributed",
-              value: `${daysContributed}/90`,
+              value: `${daysContributed}/${durationDays}`,
               icon: Calendar,
               color: "text-emerald-600",
             },
@@ -323,10 +373,10 @@ export default function DashboardPage() {
             {/* 90-cell visual grid */}
             <div>
               <h2 className=' font-semibold mb-2 uppercase tracking-wide'>
-                90-Day contribution map
+                {durationDays}-Day contribution map
               </h2>
               <div className='flex flex-wrap gap-1'>
-                {Array.from({ length: 90 }, (_, i) => {
+                {Array.from({ length: durationDays }, (_, i) => {
                   const paid = i < daysContributed;
                   return (
                     <div
@@ -390,13 +440,62 @@ export default function DashboardPage() {
           </div>
 
           {isEligible ? (
-            <div className='flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'>
-              <CheckCircle2 className='h-4 w-4 text-emerald-600 shrink-0' />
-              <p className='text-sm text-emerald-700 dark:text-emerald-400 font-medium'>
-                Congratulations! You are now eligible for a {fmt(pkg.loan)}{" "}
-                loan.
-              </p>
-              <ChevronRight className='h-4 w-4 text-emerald-600 ml-auto' />
+            <div className='p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'>
+              <div className='flex items-center gap-2'>
+                <CheckCircle2 className='h-4 w-4 text-emerald-600 shrink-0' />
+                <p className='text-sm text-emerald-700 dark:text-emerald-400 font-medium'>
+                  Congratulations! You are eligible for a loan of up to{" "}
+                  {fmt(pkg.loan)}.
+                </p>
+                {!hasActiveLoan && <ChevronRight className='h-4 w-4 text-emerald-600 ml-auto' />}
+              </div>
+              {hasActiveLoan ? (
+                <p className='text-xs text-muted-foreground mt-2'>
+                  You already have an active loan application.
+                </p>
+              ) : (
+                <Dialog open={loanDialogOpen} onOpenChange={setLoanDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      className='bg-emerald-600 hover:bg-emerald-700 text-white mt-3'
+                      size='sm'>
+                      Apply for a Loan
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Apply for a Loan</DialogTitle>
+                    </DialogHeader>
+                    <div className='space-y-3'>
+                      <p className='text-sm text-muted-foreground'>
+                        Your maximum loan cap for the {pkg.name} package is{" "}
+                        <span className='font-semibold text-foreground'>
+                          {fmt(pkg.loan)}
+                        </span>
+                        . Enter the amount you&apos;d like to apply for.
+                      </p>
+                      <div className='space-y-1.5'>
+                        <Label htmlFor='loan-amount'>Loan amount (₦)</Label>
+                        <Input
+                          id='loan-amount'
+                          type='number'
+                          min={1}
+                          max={pkg.loan}
+                          value={loanAmountInput}
+                          onChange={(e) => setLoanAmountInput(e.target.value)}
+                          placeholder={`Up to ${fmt(pkg.loan)}`}
+                        />
+                      </div>
+                      <Button
+                        onClick={handleApplyForLoan}
+                        disabled={applying}
+                        className='bg-emerald-600 hover:bg-emerald-700 text-white w-full'>
+                        {applying ? "Submitting…" : "Submit Application"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           ) : (
             <p className='text-sm text-muted-foreground'>
@@ -494,13 +593,23 @@ export default function DashboardPage() {
                       Loan
                     </p>
                     <p className='text-xs text-muted-foreground'>
-                      Applied{" "}
-                      {new Date(loan.appliedAt).toLocaleDateString("en-NG", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      Applied {formatDateDisplay2(loan.appliedAt)}
                     </p>
+                    {loan.approvedAt && (
+                      <p className='text-xs text-muted-foreground'>
+                        Approved {formatDateDisplay2(loan.approvedAt)}
+                      </p>
+                    )}
+                    {loan.disbursedAt && (
+                      <p className='text-xs text-muted-foreground'>
+                        Disbursed {formatDateDisplay2(loan.disbursedAt)}
+                      </p>
+                    )}
+                    {loan.clearedAt && (
+                      <p className='text-xs text-muted-foreground'>
+                        Cleared {formatDateDisplay2(loan.clearedAt)}
+                      </p>
+                    )}
                   </div>
                   <div className='text-right'>
                     <p className='text-sm font-bold'>{fmt(loan.amount)}</p>

@@ -9,9 +9,16 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as adminContributions from "../adminContributions.js";
+import type * as content from "../content.js";
 import type * as http from "../http.js";
+import type * as lib_adminAuth from "../lib/adminAuth.js";
 import type * as lib_bvnCrypto from "../lib/bvnCrypto.js";
+import type * as lib_refGen from "../lib/refGen.js";
+import type * as packages from "../packages.js";
 import type * as registration from "../registration.js";
+import type * as reports from "../reports.js";
+import type * as stats from "../stats.js";
 import type * as userContributions from "../userContributions.js";
 import type * as userData from "../userData.js";
 import type * as userLoans from "../userLoans.js";
@@ -26,9 +33,16 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  adminContributions: typeof adminContributions;
+  content: typeof content;
   http: typeof http;
+  "lib/adminAuth": typeof lib_adminAuth;
   "lib/bvnCrypto": typeof lib_bvnCrypto;
+  "lib/refGen": typeof lib_refGen;
+  packages: typeof packages;
   registration: typeof registration;
+  reports: typeof reports;
+  stats: typeof stats;
   userContributions: typeof userContributions;
   userData: typeof userData;
   userLoans: typeof userLoans;

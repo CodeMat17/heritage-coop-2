@@ -11,14 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Building2 } from "lucide-react";
 
-const PACKAGES = [
-  { id: "bronze",  name: "Bronze",  daily: 500,    loan: 100_000,   regFee: 5_000,  desc: "Start small and build the savings habit." },
-  { id: "silver",  name: "Silver",  daily: 1_000,  loan: 180_000,   regFee: 10_000, desc: "Balanced plan for steady savers." },
-  { id: "gold",    name: "Gold",    daily: 2_000,  loan: 360_000,   regFee: 20_000, desc: "Double your momentum towards bigger goals.", popular: true },
-  { id: "diamond", name: "Diamond", daily: 5_000,  loan: 1_000_000, regFee: 30_000, desc: "High-capacity savings for ambitious targets." },
-  { id: "emerald", name: "Emerald", daily: 10_000, loan: 2_000_000, regFee: 40_000, desc: "Elite savings for maximum leverage." },
-];
-
 function fmt(n: number) {
   return n >= 1_000_000 ? `₦${(n / 1_000_000).toFixed(0)}M` : `₦${n.toLocaleString("en-NG")}`;
 }
@@ -26,6 +18,7 @@ function fmt(n: number) {
 export default function SelectPackagePage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const user = useQuery(api.users.current);
+  const packages = useQuery(api.packages.list);
   const selectPackage = useMutation(api.users.selectPackage);
   const router = useRouter();
   const [selected, setSelected] = useState<string>("");
@@ -55,7 +48,18 @@ export default function SelectPackagePage() {
     }
   }
 
-  if (isLoading || user === undefined) {
+  const PACKAGES = (packages ?? []).map((p) => ({
+    id: p.packageId,
+    name: p.name,
+    daily: p.daily,
+    loan: p.loanMax,
+    regFee: p.regFee,
+    desc: p.desc,
+    popular: p.popular,
+    durationDays: p.durationDays,
+  }));
+
+  if (isLoading || user === undefined || packages === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="h-8 w-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />
@@ -122,7 +126,7 @@ export default function SelectPackagePage() {
                       </p>
                     </div>
                     <div>
-                      <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Loan after 90 days</p>
+                      <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Loan after {pkg.durationDays} days</p>
                       <p className={`font-bold text-lg ${isSelected ? "text-white" : "text-emerald-600"}`}>{fmt(pkg.loan)}</p>
                     </div>
                     <div className={`border-t pt-2 ${isSelected ? "border-emerald-500" : "border-border"}`}>
@@ -139,7 +143,7 @@ export default function SelectPackagePage() {
                         : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-transparent"
                     }`}
                   >
-                    90 days
+                    {pkg.durationDays} days
                   </Badge>
                 </motion.button>
               );

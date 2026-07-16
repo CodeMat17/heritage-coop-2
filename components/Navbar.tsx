@@ -12,7 +12,9 @@ import { usePathname } from "next/navigation";
 
 function AuthedNavActions({ onNavigate, pathname }: { onNavigate?: () => void; pathname?: string }) {
   const { user: clerkUser } = useUser();
-  const isAdmin = clerkUser?.publicMetadata?.role === "admin";
+  const isAdmin = ["content-admin", "assist-admin", "finance-admin", "super-admin"].includes(
+    clerkUser?.publicMetadata?.role as string
+  );
 
   return (
     <div className="flex items-center gap-2 px-2">
@@ -36,7 +38,9 @@ function AuthedNavActions({ onNavigate, pathname }: { onNavigate?: () => void; p
 
 function AuthedMobileActions({ onNavigate, pathname }: { onNavigate: () => void; pathname: string }) {
   const { user: clerkUser } = useUser();
-  const isAdmin = clerkUser?.publicMetadata?.role === "admin";
+  const isAdmin = ["content-admin", "assist-admin", "finance-admin", "super-admin"].includes(
+    clerkUser?.publicMetadata?.role as string
+  );
 
   return (
     <div className="flex flex-col gap-2">

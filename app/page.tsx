@@ -27,45 +27,44 @@ const fadeUp = {
 
 const stagger = { show: { transition: { staggerChildren: 0.1 } } };
 
-const PACKAGES = [
-  { id: "bronze",  name: "Bronze",  daily: 500,    loan: 100_000,   regFee: 5_000,  desc: "Start small and build the savings habit." },
-  { id: "silver",  name: "Silver",  daily: 1_000,  loan: 180_000,   regFee: 10_000, desc: "Balanced plan for steady savers." },
-  { id: "gold",    name: "Gold",    daily: 2_000,  loan: 360_000,   regFee: 20_000, desc: "Double your momentum towards bigger goals.", popular: true },
-  { id: "diamond", name: "Diamond", daily: 5_000,  loan: 1_000_000, regFee: 30_000, desc: "High-capacity savings for ambitious targets." },
-  { id: "emerald", name: "Emerald", daily: 10_000, loan: 2_000_000, regFee: 40_000, desc: "Elite savings for maximum leverage." },
-];
+const DEFAULT_HERO = {
+  badge: "Registered Cooperative Society · Nigeria",
+  headline: "Save Daily. Build Wealth. Access Loans.",
+  subtext:
+    "Heritage Multipurpose Cooperative helps you develop a consistent savings habit and rewards you with loan access after 90 days of contribution.",
+  bullets: ["No hidden charges", "Secure payments", "90-day loan access"],
+};
 
-const HOW_IT_WORKS = [
+const DEFAULT_HOW_IT_WORKS = [
   {
     step: "01",
     title: "Create Account",
     desc: "Sign up and complete your KYC onboarding in minutes. Your data is secured and encrypted.",
-    icon: Users,
   },
   {
     step: "02",
     title: "Choose a Package",
     desc: "Select from 5 packages (Bronze to Emerald) based on your daily savings capacity.",
-    icon: Wallet,
   },
   {
     step: "03",
     title: "Save & Unlock Loan",
     desc: "Contribute your daily amount for 90 days to unlock your loan entitlement.",
-    icon: TrendingUp,
   },
 ];
+const HOW_IT_WORKS_ICONS = [Users, Wallet, TrendingUp];
 
-const WHY_US = [
-  { icon: Shield, title: "Legally Registered", desc: "Registered under Nigerian cooperative law. Your contributions are protected." },
-  { icon: Wallet, title: "Flexible Loan Access", desc: "Unlock loans up to ₦2,000,000 based on your package after 90 days." },
-  { icon: BarChart3, title: "Track Your Progress", desc: "Real-time dashboard showing contribution days, total saved, and loan eligibility." },
-  { icon: CheckCircle2, title: "No Collateral", desc: "Access cooperative loans without physical collateral — your contribution record is enough." },
-  { icon: Users, title: "Community Driven", desc: "A cooperative model where members support each other's financial growth." },
-  { icon: Shield, title: "Secure Payments", desc: "All transactions processed via Squadco — PCI-DSS compliant payment infrastructure." },
+const DEFAULT_WHY_US = [
+  { title: "Legally Registered", desc: "Registered under Nigerian cooperative law. Your contributions are protected." },
+  { title: "Flexible Loan Access", desc: "Unlock loans up to ₦2,000,000 based on your package after 90 days." },
+  { title: "Track Your Progress", desc: "Real-time dashboard showing contribution days, total saved, and loan eligibility." },
+  { title: "No Collateral", desc: "Access cooperative loans without physical collateral — your contribution record is enough." },
+  { title: "Community Driven", desc: "A cooperative model where members support each other's financial growth." },
+  { title: "Secure Payments", desc: "All transactions processed via Squadco — PCI-DSS compliant payment infrastructure." },
 ];
+const WHY_US_ICONS = [Shield, Wallet, BarChart3, CheckCircle2, Users, Shield];
 
-const FAQS = [
+const DEFAULT_FAQS = [
   {
     q: "How does Heritage Cooperative work?",
     a: "You select a savings package, contribute your daily amount for 90 consecutive days, and then become eligible to access a loan equal to your package's entitlement.",
@@ -92,13 +91,6 @@ const FAQS = [
   },
 ];
 
-const STATS = [
-  { value: "40+", label: "Active Members" },
-  { value: "₦30M+", label: "Total Saved" },
-  { value: "₦120M+", label: "Loans Disbursed" },
-  { value: "2+", label: "Years Active" },
-];
-
 function fmt(n: number) {
   return n >= 1_000_000
     ? `₦${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
@@ -109,7 +101,33 @@ export default function HomePage() {
   const { isAuthenticated } = useConvexAuth();
   const currentUser = useQuery(api.users.current, isAuthenticated ? {} : "skip");
   const showDashboard = isAuthenticated && currentUser?.isOnboarded === true;
- 
+
+  const content = useQuery(api.content.getAll);
+  const hero = (content?.hero as typeof DEFAULT_HERO | undefined) ?? DEFAULT_HERO;
+  const howItWorks =
+    (content?.["how-it-works"] as { step: string; title: string; desc: string }[] | undefined) ??
+    DEFAULT_HOW_IT_WORKS;
+  const whyUs = (content?.["why-us"] as { title: string; desc: string }[] | undefined) ?? DEFAULT_WHY_US;
+  const faqs = (content?.faq as { q: string; a: string }[] | undefined) ?? DEFAULT_FAQS;
+  const packagesData = useQuery(api.packages.list);
+  const PACKAGES = (packagesData ?? []).map((p) => ({
+    id: p.packageId,
+    name: p.name,
+    daily: p.daily,
+    loan: p.loanMax,
+    regFee: p.regFee,
+    desc: p.desc,
+    popular: p.popular,
+    durationDays: p.durationDays,
+  }));
+
+  const homeStats = useQuery(api.stats.getHomepageStats);
+  const STATS = [
+    { value: homeStats ? `${homeStats.activeMembers}+` : "—", label: "Active Members" },
+    { value: homeStats ? fmt(homeStats.totalSaved) : "—", label: "Total Saved" },
+    { value: homeStats ? fmt(homeStats.totalDisbursed) : "—", label: "Loans Disbursed" },
+    { value: homeStats ? `${homeStats.yearsActive}+` : "—", label: "Years Active" },
+  ];
 
   return (
     <div className="overflow-x-hidden">
@@ -130,19 +148,16 @@ export default function HomePage() {
             <motion.div variants={fadeUp}>
               <Badge variant="outline" className="mb-6 gap-1.5 border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400 px-3 py-1">
                 <Star className="h-3 w-3 fill-emerald-500 text-emerald-500" />
-                Registered Cooperative Society · Nigeria
+                {hero.badge}
               </Badge>
             </motion.div>
 
             <motion.h1 variants={fadeUp} className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-6">
-              Save Daily.{" "}
-              <span className="text-emerald-600">Build Wealth.</span>{" "}
-              Access Loans.
+              {hero.headline}
             </motion.h1>
 
             <motion.p variants={fadeUp} className="text-lg sm:text-xl text-muted-foreground mb-8 leading-relaxed max-w-2xl">
-              Heritage Multipurpose Cooperative helps you develop a consistent savings habit and rewards you with loan access after{" "}
-              <strong className="text-foreground">90 days</strong> of contribution.
+              {hero.subtext}
             </motion.p>
 
             <motion.div variants={fadeUp} className="flex flex-col items-center sm:flex-row sm:items-start gap-3 mb-12">
@@ -161,7 +176,7 @@ export default function HomePage() {
             </motion.div>
 
             <motion.div variants={fadeUp} className="flex flex-wrap gap-x-6 gap-y-2">
-              {["No hidden charges", "Secure payments", "90-day loan access"].map((t) => (
+              {hero.bullets.map((t) => (
                 <span key={t} className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                   {t}
@@ -208,22 +223,25 @@ export default function HomePage() {
             </motion.div>
 
             <div className="grid sm:grid-cols-3 gap-8">
-              {HOW_IT_WORKS.map((s) => (
-                <motion.div
-                  key={s.step}
-                  variants={fadeUp}
-                  className="relative rounded-2xl bg-card border border-border p-7 shadow-sm"
-                >
-                  <span className="text-5xl font-black text-emerald-100 dark:text-emerald-900/60 absolute top-4 right-5 select-none">
-                    {s.step}
-                  </span>
-                  <div className="h-11 w-11 rounded-xl bg-emerald-600/10 flex items-center justify-center mb-5">
-                    <s.icon className="h-5 w-5 text-emerald-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">{s.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{s.desc}</p>
-                </motion.div>
-              ))}
+              {howItWorks.map((s, i) => {
+                const Icon = HOW_IT_WORKS_ICONS[i] ?? Users;
+                return (
+                  <motion.div
+                    key={s.step}
+                    variants={fadeUp}
+                    className="relative rounded-2xl bg-card border border-border p-7 shadow-sm"
+                  >
+                    <span className="text-5xl font-black text-emerald-100 dark:text-emerald-900/60 absolute top-4 right-5 select-none">
+                      {s.step}
+                    </span>
+                    <div className="h-11 w-11 rounded-xl bg-emerald-600/10 flex items-center justify-center mb-5">
+                      <Icon className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">{s.title}</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">{s.desc}</p>
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         </div>
@@ -279,7 +297,7 @@ export default function HomePage() {
                     </div>
                     <div>
                       <p className={`text-xs ${pkg.popular ? "text-emerald-200" : "text-muted-foreground"}`}>Duration</p>
-                      <p className={`font-semibold ${pkg.popular ? "text-white" : ""}`}>90 days</p>
+                      <p className={`font-semibold ${pkg.popular ? "text-white" : ""}`}>{pkg.durationDays} days</p>
                     </div>
                     <div>
                       <p className={`text-xs ${pkg.popular ? "text-emerald-200" : "text-muted-foreground"}`}>Loan</p>
@@ -326,19 +344,22 @@ export default function HomePage() {
             </motion.div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {WHY_US.map((item) => (
-                <motion.div
-                  key={item.title}
-                  variants={fadeUp}
-                  className="rounded-2xl bg-card border border-border p-6 shadow-sm"
-                >
-                  <div className="h-10 w-10 rounded-xl bg-emerald-600/10 flex items-center justify-center mb-4">
-                    <item.icon className="h-5 w-5 text-emerald-600" />
-                  </div>
-                  <h3 className="font-semibold mb-2">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
-                </motion.div>
-              ))}
+              {whyUs.map((item, i) => {
+                const Icon = WHY_US_ICONS[i] ?? Shield;
+                return (
+                  <motion.div
+                    key={item.title}
+                    variants={fadeUp}
+                    className="rounded-2xl bg-card border border-border p-6 shadow-sm"
+                  >
+                    <div className="h-10 w-10 rounded-xl bg-emerald-600/10 flex items-center justify-center mb-4">
+                      <Icon className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <h3 className="font-semibold mb-2">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         </div>
@@ -362,7 +383,7 @@ export default function HomePage() {
 
             <motion.div variants={fadeUp}>
               <Accordion type="single" collapsible className="space-y-3">
-                {FAQS.map((faq, i) => (
+                {faqs.map((faq, i) => (
                   <AccordionItem
                     key={i}
                     value={`faq-${i}`}

@@ -1,4 +1,5 @@
 @AGENTS.md
+@PROJECT_MEMORY.md
 
 <!-- convex-ai-start -->
 This project uses [Convex](https://convex.dev) as its backend.

@@ -13,5 +13,18 @@
       "Bash(curl -Is \"https://lib.squadco.com/squad.min.js\" --max-time 10)",
       "WebFetch(domain:squadinc.gitbook.io)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard-payment-files.js"
+          }
+        ]
+      }
+    ]
   }
 }

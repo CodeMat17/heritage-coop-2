@@ -20,6 +20,28 @@ export const applyForLoan = mutation({
   handler: async (ctx, { amount, packageId }) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
+    if (user.selectedPackage !== packageId) {
+      throw new Error("Package mismatch");
+    }
+
+    const pkg = await ctx.db
+      .query("packages")
+      .withIndex("byPackageId", (q) => q.eq("packageId", packageId))
+      .unique();
+    if (!pkg) throw new Error(`Unknown package "${packageId}"`);
+    if (amount > pkg.loanMax) {
+      throw new Error(`Amount exceeds the loan cap for your package (₦${pkg.loanMax.toLocaleString("en-NG")})`);
+    }
+
+    const contributions = await ctx.db
+      .query("userContributions")
+      .withIndex("byUserId", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("status"), "success"))
+      .collect();
+    const daysContributed = new Set(contributions.flatMap((c) => c.coveredDates)).size;
+    if (daysContributed < pkg.durationDays) {
+      throw new Error(`You must complete ${pkg.durationDays} days of contributions before applying for a loan`);
+    }
 
     const existing = await ctx.db
       .query("userLoans")

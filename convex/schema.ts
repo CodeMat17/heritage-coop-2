@@ -15,6 +15,11 @@ export default defineSchema({
     registrationAmountPaid: v.optional(v.number()),
     registrationWelcomeEmailSent: v.optional(v.boolean()),
     isAdmin: v.optional(v.boolean()),
+    registeredByAdmin: v.optional(v.boolean()),
+    accountClaimed: v.optional(v.boolean()),
+    claimedAt: v.optional(v.number()),
+    registrationRecordedBy: v.optional(v.string()),
+    registrationPaymentMethod: v.optional(v.string()),
   })
     .index("byExternalId", ["externalId"])
     .index("byEmail", ["email"])
@@ -73,6 +78,8 @@ export default defineSchema({
     squadCreatedAt: v.optional(v.string()),
     gatewayRef: v.optional(v.string()),
     currency: v.optional(v.string()),
+    recordedBy: v.optional(v.string()),
+    paymentMethod: v.optional(v.string()),
   })
     .index("byUserId", ["userId"])
     .index("byTransactionRef", ["transactionRef"])
@@ -89,4 +96,23 @@ export default defineSchema({
     clearedAt: v.optional(v.number()),
     notes: v.optional(v.string()),
   }).index("byUserId", ["userId"]),
+
+  content: defineTable({
+    key: v.string(),
+    data: v.any(),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  }).index("byKey", ["key"]),
+
+  packages: defineTable({
+    packageId: v.string(),
+    name: v.string(),
+    desc: v.string(),
+    daily: v.number(),
+    loanMax: v.number(),
+    regFee: v.number(),
+    durationDays: v.number(),
+    popular: v.optional(v.boolean()),
+    order: v.number(),
+  }).index("byPackageId", ["packageId"]),
 });

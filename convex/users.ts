@@ -3,6 +3,7 @@ import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
 import { internal } from "./_generated/api";
 import { encryptBvn } from "./lib/bvnCrypto";
+import { generateRegistrationRef } from "./lib/refGen";
 
 export const current = query({
   args: {},
@@ -36,9 +37,7 @@ export const upsertFromClerk = internalMutation({
 
     const user = await userByExternalId(ctx, data.id);
     if (user === null) {
-      const year = new Date().getFullYear();
-      const suffix = Math.floor(100000 + Math.random() * 900000);
-      const registrationRef = `HC-${year}-${suffix}`;
+      const registrationRef = generateRegistrationRef();
       await ctx.db.insert("users", { ...userAttributes, isOnboarded: false, registrationRef });
     } else {
       await ctx.db.patch(user._id, {
@@ -108,21 +107,30 @@ const userDataFields = {
 };
 
 // Internal mutation — receives the BVN already encrypted.
+// Resolves the target user either by an explicit userId (admin/walk-in path)
+// or by externalId (self-service Clerk path, creating the row if missing).
 export const upsertUserDataInternal = internalMutation({
-  args: { externalId: v.string(), identityEmail: v.optional(v.string()), ...userDataFields },
+  args: {
+    externalId: v.optional(v.string()),
+    userId: v.optional(v.id("users")),
+    identityEmail: v.optional(v.string()),
+    ...userDataFields,
+  },
   async handler(ctx, args) {
-    const { externalId, identityEmail, ...data } = args;
+    const { externalId, userId, identityEmail, ...data } = args;
     const email = identityEmail ?? "";
 
-    let user = await userByExternalId(ctx, externalId);
+    let user = userId ? await ctx.db.get(userId) : null;
+    if (!user && externalId) user = await userByExternalId(ctx, externalId);
     if (!user) {
-      const userId = await ctx.db.insert("users", {
+      if (!externalId) throw new Error("User not found and no externalId to create one");
+      const newUserId = await ctx.db.insert("users", {
         externalId,
         name: data.fullName,
         email,
         isOnboarded: false,
       });
-      user = await ctx.db.get(userId);
+      user = await ctx.db.get(newUserId);
     }
     if (!user) throw new Error("User not found");
 
@@ -176,9 +184,7 @@ export const ensureRegistrationRef = mutation({
     const user = await userByExternalId(ctx, identity.subject);
     if (!user) throw new Error("User not found");
     if (!user.registrationRef) {
-      const year = new Date().getFullYear();
-      const suffix = Math.floor(100000 + Math.random() * 900000);
-      await ctx.db.patch(user._id, { registrationRef: `HC-${year}-${suffix}` });
+      await ctx.db.patch(user._id, { registrationRef: generateRegistrationRef() });
     }
   },
 });

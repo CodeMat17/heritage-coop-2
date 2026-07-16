@@ -1,14 +1,7 @@
 import { action, internalMutation, internalQuery, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-
-const REGISTRATION_FEES: Record<string, number> = {
-  bronze: 5_000,
-  silver: 10_000,
-  gold: 20_000,
-  diamond: 30_000,
-  emerald: 40_000,
-};
+import { requireRole, getRecordedByName } from "./lib/adminAuth";
 
 export const getUserByEmail = internalQuery({
   args: { email: v.string() },
@@ -26,8 +19,10 @@ export const markRegistrationPaid = internalMutation({
     transactionRef: v.string(),
     paidAt: v.number(),
     amountPaid: v.number(),
+    paymentMethod: v.optional(v.string()),
+    recordedBy: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, transactionRef, paidAt, amountPaid }) => {
+  handler: async (ctx, { userId, transactionRef, paidAt, amountPaid, paymentMethod, recordedBy }) => {
     const user = await ctx.db.get(userId);
     if (!user) return { status: "not_found" as const, emailAlreadySent: false };
     if (user.registrationPaid) {
@@ -42,9 +37,54 @@ export const markRegistrationPaid = internalMutation({
       registrationPaidAt: paidAt,
       registrationAmountPaid: amountPaid,
       registrationRef: transactionRef,
+      ...(paymentMethod ? { registrationPaymentMethod: paymentMethod } : {}),
+      ...(recordedBy ? { registrationRecordedBy: recordedBy } : {}),
     });
 
     return { status: "ok" as const, emailAlreadySent: false };
+  },
+});
+
+export const getUser = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    return await ctx.db.get(userId);
+  },
+});
+
+export const markRegistrationPaidCash = action({
+  args: {
+    userId: v.id("users"),
+    amountPaid: v.number(),
+  },
+  handler: async (ctx, { userId, amountPaid }): Promise<{ status: "ok" | "duplicate" }> => {
+    await requireRole(ctx, ["assist-admin"]);
+    const identity = await ctx.auth.getUserIdentity();
+
+    const user: { selectedPackage?: string; registrationPaid?: boolean } | null =
+      await ctx.runQuery(internal.registration.getUser, { userId });
+    if (!user) throw new Error("User not found");
+    if (user.registrationPaid) return { status: "duplicate" };
+
+    const pkg = user.selectedPackage
+      ? await ctx.runQuery(internal.packages.getByIdInternal, { packageId: user.selectedPackage })
+      : null;
+    const requiredFee = pkg?.regFee ?? 0;
+    if (amountPaid < requiredFee) throw new Error("insufficient_amount");
+
+    const suffix = Math.floor(100000 + Math.random() * 900000);
+    const transactionRef = `cash_reg_${Date.now()}_${suffix}`;
+
+    const result = await ctx.runMutation(internal.registration.markRegistrationPaid, {
+      userId,
+      transactionRef,
+      paidAt: Date.now(),
+      amountPaid,
+      paymentMethod: "cash",
+      recordedBy: getRecordedByName(identity),
+    });
+
+    return { status: result.status === "ok" ? "ok" : "duplicate" };
   },
 });
 
@@ -99,9 +139,10 @@ export const processRegistrationPayment = action({
 
     if (!user) return { status: "not_found" };
 
-    const requiredFee = user.selectedPackage
-      ? (REGISTRATION_FEES[user.selectedPackage] ?? 0)
-      : 0;
+    const pkg = user.selectedPackage
+      ? await ctx.runQuery(internal.packages.getByIdInternal, { packageId: user.selectedPackage })
+      : null;
+    const requiredFee = pkg?.regFee ?? 0;
 
     if (args.amount < requiredFee) {
       console.warn(
