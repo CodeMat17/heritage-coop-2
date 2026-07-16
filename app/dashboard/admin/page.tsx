@@ -326,7 +326,7 @@ function UserDetail({ userId, role }: { userId: Id<"users">; role: string | unde
   return (
     <div className='space-y-6 pr-1'>
       {/* Registration status */}
-      <div className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm ${
+      <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-xl px-4 py-3 text-sm ${
         user.registrationPaid
           ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800"
           : "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
@@ -344,9 +344,9 @@ function UserDetail({ userId, role }: { userId: Id<"users">; role: string | unde
             </p>
           )}
         </div>
-        <div className="text-right">
+        <div className="sm:text-right truncate">
           <p className="text-xs text-muted-foreground">Ref code</p>
-          <p className="text-xs font-mono font-medium">{user.registrationRef ?? "—"}</p>
+          <p className="text-xs font-mono font-medium truncate">{user.registrationRef ?? "—"}</p>
         </div>
       </div>
 
@@ -1243,7 +1243,7 @@ function FinanceReports() {
               { label: "Registrations", value: String(summary.registrationCount) },
               { label: "Total Disbursed", value: fmt(summary.totalDisbursed) },
               {
-                label: "Loans (pending/approved/disbursed/cleared)",
+                label: "Loans (pending/ approved/ disbursed/ cleared)",
                 value: `${summary.loansByStatus.pending ?? 0}/${summary.loansByStatus.approved ?? 0}/${summary.loansByStatus.disbursed ?? 0}/${summary.loansByStatus.cleared ?? 0}`,
               },
             ].map((s) => (
