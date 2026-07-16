@@ -235,7 +235,7 @@ export default function HomePage() {
               variants={fadeUp}
               className='rounded-2xl border border-border bg-card p-5 shadow-sm'>
               <p className='text-2xl sm:text-3xl font-extrabold text-emerald-600'>
-                11+
+                11M+
               </p>
               <p className='text-sm text-muted-foreground mt-1'>
                 Total Saved
@@ -246,7 +246,7 @@ export default function HomePage() {
               variants={fadeUp}
               className='rounded-2xl border border-border bg-card p-5 shadow-sm'>
               <p className='text-2xl sm:text-3xl font-extrabold text-emerald-600'>
-                5+
+                5M+
               </p>
               <p className='text-sm text-muted-foreground mt-1'>
 Loans Disbursed              </p>
