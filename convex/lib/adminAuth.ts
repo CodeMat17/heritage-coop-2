@@ -2,7 +2,7 @@ import { QueryCtx, MutationCtx, ActionCtx } from "../_generated/server";
 
 // Keep in sync with ADMIN_ROLES in proxy.ts — Convex functions can't import
 // from the app/ directory, so this list is intentionally duplicated there.
-export type AdminRole = "content-admin" | "finance-admin" | "assist-admin" | "super-admin";
+export type AdminRole = "content-admin" | "finance-admin" | "assist-admin" | "finance-assist-admin" | "super-admin";
 
 type AuthedCtx = QueryCtx | MutationCtx | ActionCtx;
 
@@ -24,7 +24,7 @@ export async function requireRole(ctx: AuthedCtx, allowed: AdminRole[]) {
 // detail) that every admin tab needs regardless of their specific role.
 export async function requireAnyAdmin(ctx: AuthedCtx) {
   const role = await getRole(ctx);
-  const allRoles: AdminRole[] = ["content-admin", "finance-admin", "assist-admin", "super-admin"];
+  const allRoles: AdminRole[] = ["content-admin", "finance-admin", "assist-admin", "finance-assist-admin", "super-admin"];
   if (!role || !allRoles.includes(role as AdminRole)) throw new Error("Forbidden");
 }
 

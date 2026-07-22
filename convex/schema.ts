@@ -80,6 +80,7 @@ export default defineSchema({
     currency: v.optional(v.string()),
     recordedBy: v.optional(v.string()),
     paymentMethod: v.optional(v.string()),
+    packageId: v.optional(v.string()),
   })
     .index("byUserId", ["userId"])
     .index("byTransactionRef", ["transactionRef"])
@@ -114,5 +115,8 @@ export default defineSchema({
     durationDays: v.number(),
     popular: v.optional(v.boolean()),
     order: v.number(),
+    flexibleDaily: v.optional(v.boolean()),
+    interestRatePercent: v.optional(v.number()),
+    interestUnlockDays: v.optional(v.number()),
   }).index("byPackageId", ["packageId"]),
 });

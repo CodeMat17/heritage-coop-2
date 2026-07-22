@@ -5,7 +5,7 @@ import { requireRole, requireAnyAdmin } from "./lib/adminAuth";
 export const getTotalSaved = query({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, ["finance-admin"]);
+    await requireRole(ctx, ["finance-admin", "finance-assist-admin"]);
     const contributions = await ctx.db
       .query("userContributions")
       .withIndex("byStatus", (q) => q.eq("status", "success"))
@@ -49,7 +49,7 @@ export const getUserDetail = query({
 export const clearLoan = mutation({
   args: { loanId: v.id("userLoans") },
   handler: async (ctx, { loanId }) => {
-    await requireRole(ctx, ["finance-admin"]);
+    await requireRole(ctx, ["finance-admin", "finance-assist-admin"]);
     await ctx.db.patch(loanId, { status: "cleared", clearedAt: Date.now() });
   },
 });
@@ -57,7 +57,7 @@ export const clearLoan = mutation({
 export const approveLoan = mutation({
   args: { loanId: v.id("userLoans") },
   handler: async (ctx, { loanId }) => {
-    await requireRole(ctx, ["finance-admin"]);
+    await requireRole(ctx, ["finance-admin", "finance-assist-admin"]);
     await ctx.db.patch(loanId, { status: "approved", approvedAt: Date.now() });
   },
 });
@@ -65,7 +65,7 @@ export const approveLoan = mutation({
 export const disburseLoan = mutation({
   args: { loanId: v.id("userLoans") },
   handler: async (ctx, { loanId }) => {
-    await requireRole(ctx, ["finance-admin"]);
+    await requireRole(ctx, ["finance-admin", "finance-assist-admin"]);
     await ctx.db.patch(loanId, { status: "disbursed", disbursedAt: Date.now() });
   },
 });

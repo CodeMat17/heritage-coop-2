@@ -14,12 +14,13 @@ export const recordCashContribution = action({
   args: {
     userId: v.id("users"),
     dates: v.array(v.string()),
+    amount: v.optional(v.number()),
   },
   handler: async (
     ctx,
-    { userId, dates }
+    { userId, dates, amount }
   ): Promise<{ status: "ok"; daysCount: number; coveredDates: string[] }> => {
-    await requireRole(ctx, ["assist-admin"]);
+    await requireRole(ctx, ["assist-admin", "finance-assist-admin"]);
     const identity = await ctx.auth.getUserIdentity();
 
     const user: {
@@ -36,8 +37,7 @@ export const recordCashContribution = action({
     const pkgRow = pkgId
       ? await ctx.runQuery(internal.packages.getByIdInternal, { packageId: pkgId })
       : null;
-    const dailyRate = pkgRow?.daily;
-    if (!dailyRate) throw new Error(`Unknown package "${pkgId}" for user ${userId}`);
+    if (!pkgRow) throw new Error(`Unknown package "${pkgId}" for user ${userId}`);
 
     const registrationDate = new Date(user.registrationPaidAt);
     const registrationIso = `${registrationDate.getFullYear()}-${String(
@@ -60,7 +60,18 @@ export const recordCashContribution = action({
 
     const suffix = Math.floor(100000 + Math.random() * 900000);
     const transactionRef = `cash_con_${Date.now()}_${suffix}`;
-    const amountNaira = dailyRate * coveredDates.length;
+
+    let amountNaira: number;
+    if (pkgRow.flexibleDaily) {
+      if (!amount || amount < 1) {
+        throw new Error("An amount is required to record a cash contribution for this package.");
+      }
+      amountNaira = amount;
+    } else {
+      const dailyRate = pkgRow.daily;
+      if (!dailyRate) throw new Error(`Unknown package "${pkgId}" for user ${userId}`);
+      amountNaira = dailyRate * coveredDates.length;
+    }
 
     await ctx.runMutation(internal.webhooks.insertContribution, {
       userId,
@@ -72,6 +83,7 @@ export const recordCashContribution = action({
       currency: "NGN",
       recordedBy: getRecordedByName(identity),
       paymentMethod: "cash",
+      packageId: pkgId,
     });
 
     return { status: "ok" as const, daysCount: coveredDates.length, coveredDates };
@@ -84,7 +96,7 @@ export const recordCashContribution = action({
 export const deleteCashContribution = mutation({
   args: { contributionId: v.id("userContributions") },
   handler: async (ctx, { contributionId }) => {
-    await requireRole(ctx, ["assist-admin"]);
+    await requireRole(ctx, ["assist-admin", "finance-assist-admin"]);
 
     const contribution = await ctx.db.get(contributionId);
     if (!contribution) throw new Error("Contribution not found");
@@ -108,7 +120,7 @@ export const removeCashContributionDates = mutation({
     dates: v.array(v.string()),
   },
   handler: async (ctx, { contributionId, dates }) => {
-    await requireRole(ctx, ["assist-admin"]);
+    await requireRole(ctx, ["assist-admin", "finance-assist-admin"]);
 
     const contribution = await ctx.db.get(contributionId);
     if (!contribution) throw new Error("Contribution not found");

@@ -2,14 +2,6 @@ import { Resend } from "resend";
 import { render } from "@react-email/render";
 import RegistrationWelcome from "@/emails/RegistrationWelcome";
 
-const PACKAGE_LABELS: Record<string, string> = {
-  bronze: "Bronze",
-  silver: "Silver",
-  gold: "Gold",
-  diamond: "Diamond",
-  emerald: "Emerald",
-};
-
 export async function sendWelcomeEmail(args: {
   email: string;
   name: string;
@@ -19,7 +11,8 @@ export async function sendWelcomeEmail(args: {
   paidAt: number;
 }): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const packageLabel = PACKAGE_LABELS[args.selectedPackage] ?? args.selectedPackage;
+  const packageLabel =
+    args.selectedPackage.charAt(0).toUpperCase() + args.selectedPackage.slice(1);
   const html = await render(
     RegistrationWelcome({
       name: args.name,

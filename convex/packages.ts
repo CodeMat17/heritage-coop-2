@@ -39,6 +39,9 @@ export const upsert = mutation({
     durationDays: v.number(),
     popular: v.optional(v.boolean()),
     order: v.number(),
+    flexibleDaily: v.optional(v.boolean()),
+    interestRatePercent: v.optional(v.number()),
+    interestUnlockDays: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, ["content-admin"]);
@@ -48,6 +51,18 @@ export const upsert = mutation({
       .unique();
     if (existing) await ctx.db.patch(existing._id, args);
     else await ctx.db.insert("packages", args);
+  },
+});
+
+export const remove = mutation({
+  args: { packageId: v.string() },
+  handler: async (ctx, { packageId }) => {
+    await requireRole(ctx, ["content-admin"]);
+    const existing = await ctx.db
+      .query("packages")
+      .withIndex("byPackageId", (q) => q.eq("packageId", packageId))
+      .unique();
+    if (existing) await ctx.db.delete(existing._id);
   },
 });
 

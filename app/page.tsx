@@ -119,6 +119,9 @@ export default function HomePage() {
     desc: p.desc,
     popular: p.popular,
     durationDays: p.durationDays,
+    flexibleDaily: p.flexibleDaily,
+    interestRatePercent: p.interestRatePercent,
+    interestUnlockDays: p.interestUnlockDays,
   }));
 
   const homeStats = useQuery(api.stats.getHomepageStats);
@@ -218,8 +221,6 @@ export default function HomePage() {
               </motion.div>
             ))} */}
 
-          
-
             <motion.div
               variants={fadeUp}
               className='rounded-2xl border border-border bg-card p-5 shadow-sm'>
@@ -237,9 +238,7 @@ export default function HomePage() {
               <p className='text-2xl sm:text-3xl font-extrabold text-emerald-600'>
                 11M+
               </p>
-              <p className='text-sm text-muted-foreground mt-1'>
-                Total Saved
-              </p>
+              <p className='text-sm text-muted-foreground mt-1'>Total Saved</p>
             </motion.div>
 
             <motion.div
@@ -249,7 +248,8 @@ export default function HomePage() {
                 5M+
               </p>
               <p className='text-sm text-muted-foreground mt-1'>
-Loans Disbursed              </p>
+                Loans Disbursed{" "}
+              </p>
             </motion.div>
 
             <motion.div
@@ -258,9 +258,7 @@ Loans Disbursed              </p>
               <p className='text-2xl sm:text-3xl font-extrabold text-emerald-600'>
                 2+
               </p>
-              <p className='text-sm text-muted-foreground mt-1'>
-              Years Active
-              </p>
+              <p className='text-sm text-muted-foreground mt-1'>Years Active</p>
             </motion.div>
           </motion.div>
         </div>
@@ -333,7 +331,7 @@ Loans Disbursed              </p>
               </p>
             </motion.div>
 
-            <div className='grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5'>
+            <div className='grid sm:grid-cols-2 md:grid-cols-3 gap-5'>
               {PACKAGES.map((pkg) => (
                 <motion.div
                   key={pkg.id}
@@ -366,7 +364,7 @@ Loans Disbursed              </p>
                       </p>
                       <p
                         className={`text-2xl font-extrabold ${pkg.popular ? "text-white" : "text-foreground"}`}>
-                        ₦{pkg.daily.toLocaleString("en-NG")}
+                        {pkg.flexibleDaily ? "Flexible" : `₦${pkg.daily.toLocaleString("en-NG")}`}
                       </p>
                     </div>
                     <div>
@@ -376,7 +374,9 @@ Loans Disbursed              </p>
                       </p>
                       <p
                         className={`font-semibold ${pkg.popular ? "text-white" : ""}`}>
-                        {pkg.durationDays} days
+                        {pkg.flexibleDaily
+                          ? `${pkg.interestRatePercent ?? 0}% interest, ${pkg.interestUnlockDays ?? 90}-day unlock`
+                          : `${pkg.durationDays} days`}
                       </p>
                     </div>
                     <div>
@@ -386,7 +386,7 @@ Loans Disbursed              </p>
                       </p>
                       <p
                         className={`font-bold text-lg ${pkg.popular ? "text-white" : "text-emerald-600"}`}>
-                        {fmt(pkg.loan)}
+                        {pkg.flexibleDaily ? "Not applicable" : fmt(pkg.loan)}
                       </p>
                     </div>
                     <div

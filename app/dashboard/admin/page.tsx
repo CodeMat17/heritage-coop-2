@@ -45,9 +45,19 @@ function usePackagesLookup() {
   return Object.fromEntries(
     (packages ?? []).map((p) => [
       p.packageId,
-      { name: p.name, daily: p.daily, loan: p.loanMax, regFee: p.regFee, durationDays: p.durationDays },
+      {
+        name: p.name,
+        daily: p.daily,
+        loan: p.loanMax,
+        regFee: p.regFee,
+        durationDays: p.durationDays,
+        flexibleDaily: p.flexibleDaily,
+      },
     ])
-  ) as Record<string, { name: string; daily: number; loan: number; regFee: number; durationDays: number }>;
+  ) as Record<
+    string,
+    { name: string; daily: number; loan: number; regFee: number; durationDays: number; flexibleDaily?: boolean }
+  >;
 }
 
 function fmt(n: number) { return `₦${n.toLocaleString("en-NG")}`; }
@@ -68,8 +78,10 @@ function CashContributionDialog({
   const recordCashContribution = useAction(api.adminContributions.recordCashContribution);
   const packages = usePackagesLookup();
   const dailyRate = packages[packageId]?.daily ?? 0;
+  const isFlexible = packages[packageId]?.flexibleDaily ?? false;
   const [open, setOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const coveredSet = new Set(alreadyCoveredDates);
@@ -90,13 +102,23 @@ function CashContributionDialog({
       toast.error("Select at least one day.");
       return;
     }
+    const amountNaira = Number(amount);
+    if (isFlexible && (!amount || !amountNaira || amountNaira < 1)) {
+      toast.error("Enter the contribution amount.");
+      return;
+    }
     setSubmitting(true);
     try {
       const dates = selectedDates.map(toIso);
-      const result = await recordCashContribution({ userId, dates });
+      const result = await recordCashContribution({
+        userId,
+        dates,
+        ...(isFlexible ? { amount: amountNaira } : {}),
+      });
       toast.success(`Recorded ${result.daysCount} day(s) covered.`);
       setOpen(false);
       setSelectedDates([]);
+      setAmount("");
     } catch {
       toast.error("Failed to record cash contribution.");
     } finally {
@@ -117,21 +139,48 @@ function CashContributionDialog({
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Daily rate: {fmt(dailyRate)} · Select the day(s) being paid for (from{" "}
+            {isFlexible
+              ? "Flexible package · Select the day this payment covers (from"
+              : `Daily rate: ${fmt(dailyRate)} · Select the day(s) being paid for (from`}{" "}
             {registrationDay.toLocaleDateString("en-NG")})
           </p>
-          <Calendar
-            mode="multiple"
-            selected={selectedDates}
-            onSelect={(d) => setSelectedDates(d ?? [])}
-            disabled={(d) => coveredSet.has(toIso(d)) || d < registrationDay}
-            className="rounded-lg border"
-            captionLayout="dropdown"
-          />
-          <p className="text-sm font-semibold">
-            Total: {fmt(dailyRate * selectedDates.length)} ({selectedDates.length} day
-            {selectedDates.length === 1 ? "" : "s"})
-          </p>
+          {isFlexible ? (
+            <Calendar
+              mode="single"
+              selected={selectedDates[0]}
+              onSelect={(d) => setSelectedDates(d ? [d] : [])}
+              disabled={(d) => coveredSet.has(toIso(d)) || d < registrationDay}
+              className="rounded-lg border"
+              captionLayout="dropdown"
+            />
+          ) : (
+            <Calendar
+              mode="multiple"
+              selected={selectedDates}
+              onSelect={(d) => setSelectedDates(d ?? [])}
+              disabled={(d) => coveredSet.has(toIso(d)) || d < registrationDay}
+              className="rounded-lg border"
+              captionLayout="dropdown"
+            />
+          )}
+          {isFlexible ? (
+            <Field>
+              <FieldLabel htmlFor="cash-contribution-amount">Contribution amount (₦)</FieldLabel>
+              <Input
+                id="cash-contribution-amount"
+                type="number"
+                min={1}
+                placeholder="Enter amount paid"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </Field>
+          ) : (
+            <p className="text-sm font-semibold">
+              Total: {fmt(dailyRate * selectedDates.length)} ({selectedDates.length} day
+              {selectedDates.length === 1 ? "" : "s"})
+            </p>
+          )}
           <Button className="w-full" disabled={submitting} onClick={handleSubmit}>
             {submitting ? "Recording…" : "Record Payment"}
           </Button>
@@ -278,8 +327,8 @@ function UserDetail({ userId, role }: { userId: Id<"users">; role: string | unde
   const deleteCashContribution = useMutation(api.adminContributions.deleteCashContribution);
   const [loading, setLoading] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
-  const canFinancial = role === "finance-admin" || role === "super-admin";
-  const canAssist = role === "assist-admin" || role === "super-admin";
+  const canFinancial = role === "finance-admin" || role === "finance-assist-admin" || role === "super-admin";
+  const canAssist = role === "assist-admin" || role === "finance-assist-admin" || role === "super-admin";
   const packages = usePackagesLookup();
 
   if (!detail) return (
@@ -813,11 +862,23 @@ type PackageRow = {
   durationDays: number;
   popular?: boolean;
   order: number;
+  flexibleDaily?: boolean;
+  interestRatePercent?: number;
+  interestUnlockDays?: number;
 };
 
-function PackageEditorCard({ pkg, onSave }: { pkg: PackageRow; onSave: (v: PackageRow) => Promise<unknown> }) {
+function PackageEditorCard({
+  pkg,
+  onSave,
+  onRemove,
+}: {
+  pkg: PackageRow;
+  onSave: (v: PackageRow) => Promise<unknown>;
+  onRemove?: (v: PackageRow) => Promise<unknown>;
+}) {
   const [form, setForm] = useState(pkg);
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   function set<K extends keyof PackageRow>(key: K, value: PackageRow[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -832,6 +893,25 @@ function PackageEditorCard({ pkg, onSave }: { pkg: PackageRow; onSave: (v: Packa
       toast.error("Failed to save package.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!onRemove) return;
+    if (
+      !window.confirm(
+        `Remove the "${form.name || form.packageId}" package? This cannot be undone.`
+      )
+    )
+      return;
+    setRemoving(true);
+    try {
+      await onRemove(form);
+      toast.success(`${form.name || form.packageId} package removed.`);
+    } catch {
+      toast.error("Failed to remove package.");
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -854,7 +934,17 @@ function PackageEditorCard({ pkg, onSave }: { pkg: PackageRow; onSave: (v: Packa
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div>
           <Label className="text-xs mb-1 block">Daily contribution (₦)</Label>
-          <Input type="number" value={form.daily} onChange={(e) => set("daily", Number(e.target.value))} />
+          <Input
+            type="number"
+            value={form.daily}
+            disabled={!!form.flexibleDaily}
+            onChange={(e) => set("daily", Number(e.target.value))}
+          />
+          {form.flexibleDaily && (
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Ignored — members choose their own amount.
+            </p>
+          )}
         </div>
         <div>
           <Label className="text-xs mb-1 block">Loan maximum (₦)</Label>
@@ -867,6 +957,37 @@ function PackageEditorCard({ pkg, onSave }: { pkg: PackageRow; onSave: (v: Packa
         <div>
           <Label className="text-xs mb-1 block">Duration (days)</Label>
           <Input type="number" value={form.durationDays} onChange={(e) => set("durationDays", Number(e.target.value))} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!form.flexibleDaily}
+            onChange={(e) => set("flexibleDaily", e.target.checked)}
+            className="h-3.5 w-3.5 accent-emerald-600"
+          />
+          Flexible daily amount
+        </label>
+        <div>
+          <Label className="text-xs mb-1 block">Interest rate (%)</Label>
+          <Input
+            type="number"
+            value={form.interestRatePercent ?? ""}
+            onChange={(e) =>
+              set("interestRatePercent", e.target.value === "" ? undefined : Number(e.target.value))
+            }
+          />
+        </div>
+        <div>
+          <Label className="text-xs mb-1 block">Interest unlock (days)</Label>
+          <Input
+            type="number"
+            value={form.interestUnlockDays ?? ""}
+            onChange={(e) =>
+              set("interestUnlockDays", e.target.value === "" ? undefined : Number(e.target.value))
+            }
+          />
         </div>
       </div>
       <div className="flex items-center justify-between">
@@ -890,17 +1011,91 @@ function PackageEditorCard({ pkg, onSave }: { pkg: PackageRow; onSave: (v: Packa
             />
           </label>
         </div>
-        <Button size="sm" disabled={saving} onClick={handleSave}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {onRemove && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={removing || saving}
+              onClick={handleRemove}>
+              {removing ? "Removing…" : "Remove"}
+            </Button>
+          )}
+          <Button size="sm" disabled={saving || removing} onClick={handleSave}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </div>
       </div>
     </div>
+  );
+}
+
+function AddPackageDialog({
+  packages,
+  onSave,
+}: {
+  packages: PackageRow[];
+  onSave: (v: PackageRow) => Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const nextOrder = packages.length
+    ? Math.max(...packages.map((p) => p.order)) + 1
+    : 1;
+  const blank: PackageRow = {
+    packageId: "",
+    name: "",
+    desc: "",
+    daily: 0,
+    loanMax: 0,
+    regFee: 0,
+    durationDays: 90,
+    popular: false,
+    order: nextOrder,
+    flexibleDaily: false,
+    interestRatePercent: undefined,
+    interestUnlockDays: undefined,
+  };
+
+  async function handleSave(v: PackageRow) {
+    const id = v.packageId.trim().toLowerCase();
+    if (!id || !v.name.trim()) {
+      toast.error("Package ID and display name are required.");
+      throw new Error("validation");
+    }
+    if (packages.some((p) => p.packageId.toLowerCase() === id)) {
+      toast.error("A package with that ID already exists.");
+      throw new Error("validation");
+    }
+    await onSave({ ...v, packageId: id });
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5">
+          <Plus className="h-3.5 w-3.5" /> Add package
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add package</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Package ID must be a unique slug (lowercase, no spaces), e.g.{" "}
+          <code>platinum</code>.
+        </p>
+        <PackageEditorCard key={open ? "open" : "closed"} pkg={blank} onSave={handleSave} />
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function PackagesAdminPanel() {
   const packages = useQuery(api.packages.list);
   const upsert = useMutation(api.packages.upsert);
+  const remove = useMutation(api.packages.remove);
   const seedDefaults = useMutation(api.packages.seedDefaults);
   const [seeding, setSeeding] = useState(false);
 
@@ -918,12 +1113,33 @@ function PackagesAdminPanel() {
 
   return (
     <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
-      <div className="px-4 sm:px-6 py-4 border-b border-border">
-        <h2 className="font-semibold">Package Details</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage each package&apos;s name, description, daily contribution, loan maximum,
-          registration fee, and duration. Changes apply everywhere these are shown.
-        </p>
+      <div className="px-4 sm:px-6 py-4 border-b border-border flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Package Details</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage each package&apos;s name, description, daily contribution, loan maximum,
+            registration fee, and duration. Changes apply everywhere these are shown.
+          </p>
+        </div>
+        {packages && packages.length > 0 && (
+          <AddPackageDialog
+            packages={packages.map((p) => ({
+              packageId: p.packageId,
+              name: p.name,
+              desc: p.desc,
+              daily: p.daily,
+              loanMax: p.loanMax,
+              regFee: p.regFee,
+              durationDays: p.durationDays,
+              popular: p.popular,
+              order: p.order,
+              flexibleDaily: p.flexibleDaily,
+              interestRatePercent: p.interestRatePercent,
+              interestUnlockDays: p.interestUnlockDays,
+            }))}
+            onSave={(v) => upsert(v)}
+          />
+        )}
       </div>
 
       {packages === undefined ? (
@@ -952,8 +1168,12 @@ function PackagesAdminPanel() {
                 durationDays: p.durationDays,
                 popular: p.popular,
                 order: p.order,
+                flexibleDaily: p.flexibleDaily,
+                interestRatePercent: p.interestRatePercent,
+                interestUnlockDays: p.interestUnlockDays,
               }}
               onSave={(v) => upsert(v)}
+              onRemove={(v) => remove({ packageId: v.packageId })}
             />
           ))}
         </div>
@@ -1432,6 +1652,7 @@ const ADMIN_ROLES = [
   { value: "content-admin", label: "Content Admin" },
   { value: "assist-admin", label: "Assist Admin" },
   { value: "finance-admin", label: "Finance Admin" },
+  { value: "finance-assist-admin", label: "Finance & Assist Admin" },
 ] as const;
 
 function AdminUserRowItem({
@@ -1676,8 +1897,8 @@ export default function AdminPage() {
   const { isAuthenticated } = useConvexAuth();
   const role = clerkUser?.publicMetadata?.role as string | undefined;
   const isContent = role === "content-admin" || role === "super-admin";
-  const isAssist = role === "assist-admin" || role === "super-admin";
-  const isFinance = role === "finance-admin" || role === "super-admin";
+  const isAssist = role === "assist-admin" || role === "finance-assist-admin" || role === "super-admin";
+  const isFinance = role === "finance-admin" || role === "finance-assist-admin" || role === "super-admin";
   const isSuperAdmin = role === "super-admin";
 
   const allUsers = useQuery(api.admin.getAllUsers, isAuthenticated ? {} : "skip");

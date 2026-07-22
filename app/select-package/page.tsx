@@ -57,6 +57,9 @@ export default function SelectPackagePage() {
     desc: p.desc,
     popular: p.popular,
     durationDays: p.durationDays,
+    flexibleDaily: p.flexibleDaily,
+    interestRatePercent: p.interestRatePercent,
+    interestUnlockDays: p.interestUnlockDays,
   }));
 
   if (isLoading || user === undefined || packages === undefined) {
@@ -122,12 +125,25 @@ export default function SelectPackagePage() {
                     <div>
                       <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Daily contribution</p>
                       <p className={`text-2xl font-extrabold ${isSelected ? "text-white" : "text-foreground"}`}>
-                        ₦{pkg.daily.toLocaleString("en-NG")}
+                        {pkg.flexibleDaily ? "Flexible" : `₦${pkg.daily.toLocaleString("en-NG")}`}
                       </p>
                     </div>
                     <div>
-                      <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Loan after {pkg.durationDays} days</p>
-                      <p className={`font-bold text-lg ${isSelected ? "text-white" : "text-emerald-600"}`}>{fmt(pkg.loan)}</p>
+                      {pkg.flexibleDaily ? (
+                        <>
+                          <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>
+                            Interest after {pkg.interestUnlockDays ?? 90} days
+                          </p>
+                          <p className={`font-bold text-lg ${isSelected ? "text-white" : "text-emerald-600"}`}>
+                            {pkg.interestRatePercent ?? 0}%
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Loan after {pkg.durationDays} days</p>
+                          <p className={`font-bold text-lg ${isSelected ? "text-white" : "text-emerald-600"}`}>{fmt(pkg.loan)}</p>
+                        </>
+                      )}
                     </div>
                     <div className={`border-t pt-2 ${isSelected ? "border-emerald-500" : "border-border"}`}>
                       <p className={`text-xs ${isSelected ? "text-emerald-200" : "text-muted-foreground"}`}>Registration fee</p>

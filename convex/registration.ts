@@ -58,7 +58,7 @@ export const markRegistrationPaidCash = action({
     amountPaid: v.number(),
   },
   handler: async (ctx, { userId, amountPaid }): Promise<{ status: "ok" | "duplicate" }> => {
-    await requireRole(ctx, ["assist-admin"]);
+    await requireRole(ctx, ["assist-admin", "finance-assist-admin"]);
     const identity = await ctx.auth.getUserIdentity();
 
     const user: { selectedPackage?: string; registrationPaid?: boolean } | null =

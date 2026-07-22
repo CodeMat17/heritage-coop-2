@@ -13,7 +13,7 @@ const isAdminRoute = createRouteMatcher(["/dashboard/admin(.*)"]);
 
 // Keep in sync with AdminRole in convex/lib/adminAuth.ts — Convex functions
 // can't import from this app/ file, so the list is intentionally duplicated.
-const ADMIN_ROLES = ["content-admin", "finance-admin", "assist-admin", "super-admin"];
+const ADMIN_ROLES = ["content-admin", "finance-admin", "assist-admin", "finance-assist-admin", "super-admin"];
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (isPublicRoute(req)) return NextResponse.next();

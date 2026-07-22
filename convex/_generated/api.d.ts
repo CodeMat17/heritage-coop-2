@@ -12,6 +12,7 @@ import type * as admin from "../admin.js";
 import type * as adminContributions from "../adminContributions.js";
 import type * as content from "../content.js";
 import type * as http from "../http.js";
+import type * as interest from "../interest.js";
 import type * as lib_adminAuth from "../lib/adminAuth.js";
 import type * as lib_bvnCrypto from "../lib/bvnCrypto.js";
 import type * as lib_refGen from "../lib/refGen.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   adminContributions: typeof adminContributions;
   content: typeof content;
   http: typeof http;
+  interest: typeof interest;
   "lib/adminAuth": typeof lib_adminAuth;
   "lib/bvnCrypto": typeof lib_bvnCrypto;
   "lib/refGen": typeof lib_refGen;

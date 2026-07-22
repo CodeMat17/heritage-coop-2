@@ -8,14 +8,6 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Clock } from "lucide-react";
 import RegistrationPayButton from "@/components/RegistrationPayButton";
 
-const REGISTRATION_FEES: Record<string, number> = {
-  bronze:  5_000,
-  silver:  10_000,
-  gold:    20_000,
-  diamond: 30_000,
-  emerald: 40_000,
-};
-
 function fmt(n: number) {
   return `₦${n.toLocaleString("en-NG")}`;
 }
@@ -24,6 +16,7 @@ export default function PaymentInstructionsPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const router = useRouter();
   const convexUser = useQuery(api.users.current);
+  const packagesData = useQuery(api.packages.list);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.replace("/sign-in");
@@ -36,7 +29,7 @@ export default function PaymentInstructionsPage() {
     else if (convexUser?.registrationPaid) router.replace("/dashboard");
   }, [convexUser, router]);
 
-  if (isLoading || convexUser === undefined) {
+  if (isLoading || convexUser === undefined || packagesData === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="h-8 w-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />
@@ -45,8 +38,9 @@ export default function PaymentInstructionsPage() {
   }
 
   const pkg = convexUser?.selectedPackage ?? "";
-  const fee = REGISTRATION_FEES[pkg] ?? 0;
-  const pkgLabel = pkg ? pkg.charAt(0).toUpperCase() + pkg.slice(1) : "";
+  const pkgRow = packagesData.find((p) => p.packageId === pkg);
+  const fee = pkgRow?.regFee ?? 0;
+  const pkgLabel = pkgRow?.name ?? (pkg ? pkg.charAt(0).toUpperCase() + pkg.slice(1) : "");
   const email = convexUser?.email ?? "";
 
   return (

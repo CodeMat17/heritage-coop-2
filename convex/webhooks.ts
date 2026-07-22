@@ -69,7 +69,29 @@ export const processSquadPayment = action({
     const pkgRow = pkgId
       ? await ctx.runQuery(internal.packages.getByIdInternal, { packageId: pkgId })
       : null;
-    const dailyRate = pkgRow?.daily;
+    if (!pkgRow) {
+      console.error(`processSquadPayment: unknown package "${pkgId}" for user ${user._id}`);
+      return { status: "unknown_package" };
+    }
+
+    if (pkgRow.flexibleDaily) {
+      const todayIso = new Date().toISOString().split("T")[0];
+      await ctx.runMutation(internal.webhooks.insertContribution, {
+        userId: user._id,
+        transactionRef: args.transactionRef,
+        amount: amountNaira,
+        daysCount: 1,
+        coveredDates: [todayIso],
+        status: "success",
+        gatewayRef: args.gatewayRef,
+        currency: args.currency ?? "NGN",
+        squadCreatedAt: args.squadCreatedAt,
+        packageId: pkgId,
+      });
+      return { status: "ok" };
+    }
+
+    const dailyRate = pkgRow.daily;
     if (!dailyRate) {
       console.error(`processSquadPayment: unknown package "${pkgId}" for user ${user._id}`);
       return { status: "unknown_package" };
@@ -109,6 +131,7 @@ export const processSquadPayment = action({
       gatewayRef: args.gatewayRef,
       currency: args.currency ?? "NGN",
       squadCreatedAt: args.squadCreatedAt,
+      packageId: pkgId,
     });
 
     return { status: "ok" };
@@ -174,6 +197,7 @@ export const insertContribution = internalMutation({
     squadCreatedAt: v.optional(v.string()),
     recordedBy: v.optional(v.string()),
     paymentMethod: v.optional(v.string()),
+    packageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("userContributions", args);

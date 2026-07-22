@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import ContributionPayButton from "@/components/ContributionPayButton";
+import FlexibleContributionPayButton from "@/components/FlexibleContributionPayButton";
 
 const DAY_OPTIONS = [1, 2, 3, 5, 7, 14, 30];
 
@@ -83,13 +84,28 @@ export default function DashboardPage() {
   const contributions = useQuery(api.userContributions.getMyContributions);
   const loans = useQuery(api.userLoans.getMyLoans);
   const packagesData = useQuery(api.packages.list);
-  const PACKAGES: Record<string, { name: string; daily: number; loan: number; durationDays: number }> =
-    Object.fromEntries(
+  const PACKAGES: Record<
+    string,
+    {
+      name: string;
+      daily: number;
+      loan: number;
+      durationDays: number;
+      flexibleDaily?: boolean;
+    }
+  > = Object.fromEntries(
       (packagesData ?? []).map((p) => [
         p.packageId,
-        { name: p.name, daily: p.daily, loan: p.loanMax, durationDays: p.durationDays },
+        {
+          name: p.name,
+          daily: p.daily,
+          loan: p.loanMax,
+          durationDays: p.durationDays,
+          flexibleDaily: p.flexibleDaily,
+        },
       ])
     );
+  const interestStatus = useQuery(api.interest.getMyInterestStatus);
   const applyForLoan = useMutation(api.userLoans.applyForLoan);
 
   const [daysCount, setDaysCount] = useState(1);
@@ -120,13 +136,26 @@ export default function DashboardPage() {
     [stats?.contributedDates]
   );
 
+  const dateAmounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of contributions ?? []) {
+      if (c.status !== "success") continue;
+      const perDay = c.coveredDates.length > 0 ? c.amount / c.coveredDates.length : 0;
+      for (const d of c.coveredDates) map.set(d, perDay);
+    }
+    return map;
+  }, [contributions]);
+
   const datesToPay = useMemo(
     () => getNextUnpaidDates(contributedDates, daysCount),
     [contributedDates, daysCount]
   );
 
   const amountToPay = pkg ? pkg.daily * daysCount : 0;
-  const durationDays = pkg?.durationDays ?? 90;
+  const durationDays =
+    (pkg?.flexibleDaily ? interestStatus?.unlockDays : pkg?.durationDays) ??
+    pkg?.durationDays ??
+    90;
   const progressPct = Math.min(100, Math.round((daysContributed / durationDays) * 100));
 
   const firstName = convexUser?.name?.split(" ")[0] || "Member";
@@ -159,7 +188,7 @@ export default function DashboardPage() {
     }
   }
 
-  const ADMIN_ROLES = ["content-admin", "finance-admin", "assist-admin", "super-admin"];
+  const ADMIN_ROLES = ["content-admin", "finance-admin", "assist-admin", "finance-assist-admin", "super-admin"];
   const isAdmin = ADMIN_ROLES.includes(clerkUser?.publicMetadata?.role as string);
 
   if (!convexUser || !pkg || packagesData === undefined) {
@@ -259,6 +288,42 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Payment section */}
+        {pkg.flexibleDaily ? (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className='rounded-2xl bg-card border border-border p-6 shadow-sm'>
+            <h2 className='font-semibold mb-1'>Flexible Contribution</h2>
+            <p className='text-sm text-muted-foreground mb-5'>
+              Contribute any amount, any time — no fixed daily rate.
+            </p>
+
+            <Separator className='mb-5' />
+
+            {stats?.lastPaymentDate && (
+              <p className='text-xs text-muted-foreground mb-4'>
+                Last payment:{" "}
+                {new Date(stats.lastPaymentDate).toLocaleDateString("en-NG", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            )}
+
+            {convexUser?.email && (
+              <FlexibleContributionPayButton email={convexUser.email} />
+            )}
+            <p className='text-xs text-muted-foreground mt-3'>
+              Your savings balance will be updated automatically once payment is
+              confirmed.
+            </p>
+          </motion.div>
+        ) : (
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -343,6 +408,32 @@ export default function DashboardPage() {
             confirmed.
           </p>
         </motion.div>
+        )}
+
+        {/* Interest status (flexible packages only) */}
+        {interestStatus && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22 }}
+            className='rounded-2xl bg-card border border-border p-6 shadow-sm'>
+            <h2 className='font-semibold mb-1'>Interest</h2>
+            <p className='text-sm text-muted-foreground mb-4'>
+              Principal saved: {fmt(interestStatus.principal)}
+            </p>
+            {interestStatus.unlocked ? (
+              <p className='text-emerald-600 font-bold text-xl'>
+                5% interest unlocked: {fmt(interestStatus.interestAmount)}
+              </p>
+            ) : (
+              <p className='text-amber-600 font-medium'>
+                Unlocks in {Math.max(0, interestStatus.unlockDays - interestStatus.daysSaved)} day
+                {Math.max(0, interestStatus.unlockDays - interestStatus.daysSaved) === 1 ? "" : "s"}
+                {" "}({interestStatus.daysSaved}/{interestStatus.unlockDays} days saved)
+              </p>
+            )}
+          </motion.div>
+        )}
 
         {/* Progress */}
         <motion.div
@@ -430,7 +521,7 @@ export default function DashboardPage() {
                           </span>
                         </div>
                         <span className='text-xs font-semibold text-emerald-700 dark:text-emerald-400'>
-                          {fmt(pkg.daily)}
+                          {fmt(dateAmounts.get(iso) ?? pkg.daily)}
                         </span>
                       </div>
                     ))}
@@ -439,7 +530,11 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {isEligible ? (
+          {pkg.loan === 0 ? (
+            <p className='text-sm text-muted-foreground'>
+              This package does not include loan eligibility.
+            </p>
+          ) : isEligible ? (
             <div className='p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'>
               <div className='flex items-center gap-2'>
                 <CheckCircle2 className='h-4 w-4 text-emerald-600 shrink-0' />

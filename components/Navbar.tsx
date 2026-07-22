@@ -12,7 +12,7 @@ import { usePathname } from "next/navigation";
 
 function AuthedNavActions({ onNavigate, pathname }: { onNavigate?: () => void; pathname?: string }) {
   const { user: clerkUser } = useUser();
-  const isAdmin = ["content-admin", "assist-admin", "finance-admin", "super-admin"].includes(
+  const isAdmin = ["content-admin", "assist-admin", "finance-admin", "finance-assist-admin", "super-admin"].includes(
     clerkUser?.publicMetadata?.role as string
   );
 
@@ -38,7 +38,7 @@ function AuthedNavActions({ onNavigate, pathname }: { onNavigate?: () => void; p
 
 function AuthedMobileActions({ onNavigate, pathname }: { onNavigate: () => void; pathname: string }) {
   const { user: clerkUser } = useUser();
-  const isAdmin = ["content-admin", "assist-admin", "finance-admin", "super-admin"].includes(
+  const isAdmin = ["content-admin", "assist-admin", "finance-admin", "finance-assist-admin", "super-admin"].includes(
     clerkUser?.publicMetadata?.role as string
   );
 

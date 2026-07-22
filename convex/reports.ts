@@ -6,7 +6,7 @@ import { Id } from "./_generated/dataModel";
 export const getFinancialSummary = query({
   args: { startDate: v.optional(v.string()), endDate: v.optional(v.string()) },
   handler: async (ctx, { startDate, endDate }) => {
-    await requireRole(ctx, ["finance-admin"]);
+    await requireRole(ctx, ["finance-admin", "finance-assist-admin"]);
 
     const startMs = startDate ? new Date(startDate + "T00:00:00").getTime() : undefined;
     const endMs = endDate ? new Date(endDate + "T23:59:59.999").getTime() : undefined;
