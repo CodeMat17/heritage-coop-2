@@ -990,7 +990,7 @@ function PackageEditorCard({
           />
         </div>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-4">
           <label className="flex items-center gap-1.5 text-xs cursor-pointer">
             <input
